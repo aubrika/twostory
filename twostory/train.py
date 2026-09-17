@@ -40,6 +40,9 @@ class TrainConfig:
     run_name: str = "run"
     weight_by_t: bool = True
     grad_checkpointing: bool = True
+    schedule: str = "cosine"       # cosine | wsd (warmup-stable-decay: flat lr, decay only over the final decay_frac of `steps`)
+    decay_frac: float = 0.15
+    stateless_sampling: bool = False  # True: data order, ctx_len and masks are pure functions of (seed, step) -> exact resume
 
 
 class Trainer:
@@ -52,6 +55,9 @@ class Trainer:
         self.train = np.memmap(REPO / "data/tokens/train.bin", dtype=np.uint32, mode="r").reshape(-1, self.L)
         self.held = np.memmap(REPO / "data/tokens/heldout.bin", dtype=np.uint32, mode="r").reshape(-1, self.L)
         self.rng = np.random.default_rng(cfg.seed)
+        self.perm = np.random.default_rng(cfg.seed + 1).permutation(len(self.train)) if cfg.stateless_sampling else None
+        ref = REPO / "logs/phase3/32_reference_loss.json"
+        self.ref = json.load(open(ref)) if ref.exists() else None
         self.gen = torch.Generator(device="xpu"); self.gen.manual_seed(cfg.seed)
         self.params = ts.trainable_parameters()
         self.opt = self._make_optimizer()
@@ -79,6 +85,12 @@ class Trainer:
         c = self.cfg
         if step < c.warmup:
             return c.lr * (step + 1) / c.warmup
+        if c.schedule == "wsd":
+            decay_start = int(c.steps * (1 - c.decay_frac))
+            if step < decay_start:
+                return c.lr
+            p = min(1.0, (step - decay_start) / max(1, c.steps - decay_start))
+            return c.lr * (1 - (1 - c.min_lr_ratio) * p)
         p = min(1.0, (step - c.warmup) / max(1, c.steps - c.warmup))
         return c.lr * (c.min_lr_ratio + (1 - c.min_lr_ratio) * 0.5 * (1 + math.cos(math.pi * p)))
 
@@ -93,6 +105,12 @@ class Trainer:
     def train_step(self, seq_idx: list[int] | None = None, ctx_len: int | None = None, reseed: int | None = None) -> dict:
         c = self.cfg
         self.ts.train()
+        if c.stateless_sampling and seq_idx is None:
+            # everything random in this step is a pure function of (seed, step): a resumed run replays nothing and skips nothing
+            base = self.step * c.batch_seqs
+            seq_idx = [int(self.perm[(base + k) % len(self.perm)]) for k in range(c.batch_seqs)]
+            self.rng = np.random.default_rng([c.seed, self.step])
+            self.gen.manual_seed(c.seed * 1_000_003 + self.step)
         if seq_idx is None:
             seq_idx = self.rng.integers(0, len(self.train), size=c.batch_seqs).tolist()
         if reseed is not None:
@@ -136,12 +154,17 @@ class Trainer:
         self.ts.eval()
         n = n_seqs or c.eval_seqs
         g = torch.Generator(device="xpu")
-        tot, cnt, ces = 0.0, 0, []
+        tot, cnt, ces, wsum, wn = 0.0, 0, [], 0.0, 0
         for i in range(n):
             g.manual_seed(10_000 + i)  # same t and masks for sequence i every time
             loss, info = self.ts.training_loss(self.seq(self.held, i), c.eval_ctx, c.block_size, weight_by_t=c.weight_by_t, generator=g)
             tot += loss.item(); cnt += 1; ces.append(info["ce_masked_mean"])
-        res = {"step": self.step, "eval_loss": tot / cnt, "eval_ce_masked": float(np.mean(ces)), "n_seqs": cnt, "time": time.time()}
+            wsum += info["ce_masked_mean"] * info["n_masked"]; wn += info["n_masked"]
+        res = {"step": self.step, "eval_loss": tot / cnt, "eval_ce_masked": float(np.mean(ces)), "eval_ce_token_weighted": wsum / wn,
+               "n_seqs": cnt, "time": time.time()}
+        if self.ref and n == 32 and c.eval_ctx == 512:  # same sequences/masks as phase3/32_reference_loss.py
+            t0, d = self.ref["T0_untrained"], min(self.ref["D_full_context_bos0"], self.ref["D_full_context_bos1"])
+            res["gap_closed"] = (t0 - res["eval_ce_token_weighted"]) / (t0 - d)
         self.eval_history.append(res["eval_loss"])
         self.log_f.write(json.dumps({"eval": res}) + "\n"); self.log_f.flush()
         self.ts.train()
