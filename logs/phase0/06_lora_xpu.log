@@ -1,0 +1,21 @@
+[bf16+lora] loss 6.9869 trainable 126976/2871040 lora-only=True
+[GATE] [bf16+lora] loss finite: PASS
+[GATE] [bf16+lora] all trainable params got finite grads: PASS  (0 bad: [])
+[GATE] [bf16+lora] only LoRA params trainable: PASS
+[GATE] [bf16+lora] frozen params have no grad: PASS
+`torch_dtype` is deprecated! Use `dtype` instead!
+8bit q_proj dtype: torch.int8
+[GATE] [int8+lora] base weights are int8: PASS
+`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`.
+  return fn(*args, **kwargs)
+[int8+lora+ckpt] loss 6.9195 trainable 126976/2871040 lora-only=True
+[GATE] [int8+lora+ckpt] loss finite: PASS
+[GATE] [int8+lora+ckpt] all trainable params got finite grads: PASS  (0 bad: [])
+[GATE] [int8+lora+ckpt] only LoRA params trainable: PASS
+[GATE] [int8+lora+ckpt] frozen params have no grad: PASS
+[GATE] [sdpa] bool-mask SDPA matches reference on XPU: PASS  (rel err 0.0017)
+[GATE] [sdpa] backward through SDPA on XPU: PASS
+[report] /home/aubrey/Repos/twostory/logs/phase0/06_lora_xpu.json
+======================================================================
+Phase 0 / 06 LoRA on XPU: PASS  (11/11 gates passed)
+======================================================================

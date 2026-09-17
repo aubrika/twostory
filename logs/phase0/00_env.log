@@ -1,0 +1,11 @@
+{'torch': '2.14.0+xpu', 'transformers': '4.57.6', 'peft': '0.21.0', 'bitsandbytes': '0.50.2', 'accelerate': '1.15.0', 'xpu_device': 'Intel(R) Arc(TM) Pro B70 Graphics'}
+[GATE] torch.xpu available: PASS
+{'ram_total_gib': 15.04, 'ram_avail_gib': 9.59, 'swap_total_gib': 20.0, 'swap_free_gib': 13.84, 'disk_free_gib': 71.15}
+[GATE] disk free >= 40 GiB: PASS  (71.15 GiB)
+[GATE] SDPA bf16 with bool mask on XPU: PASS
+[GATE] bitsandbytes Linear8bitLt forward on XPU: PASS  (rel err 0.0050)
+[GATE] int8 weight dtype: PASS  (torch.int8)
+[report] /home/aubrey/Repos/twostory/logs/phase0/00_env.json
+======================================================================
+Phase 0 / 00 env: PASS  (5/5 gates passed)
+======================================================================

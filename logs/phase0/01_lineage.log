@@ -1,0 +1,24 @@
+[GATE] config.hidden_size equal: PASS  (3584 vs 3584)
+[GATE] config.num_hidden_layers equal: PASS  (28 vs 28)
+[GATE] config.num_attention_heads equal: PASS  (28 vs 28)
+[GATE] config.num_key_value_heads equal: PASS  (4 vs 4)
+[GATE] config.intermediate_size equal: PASS  (18944 vs 18944)
+[GATE] config.vocab_size equal: PASS  (152064 vs 152064)
+[GATE] config.rope_theta equal: PASS  (1000000.0 vs 1000000.0)
+[GATE] config.rms_norm_eps equal: PASS  (1e-06 vs 1e-06)
+[GATE] config.hidden_act equal: PASS  (silu vs silu)
+[GATE] config.tie_word_embeddings equal: PASS  (False vs False)
+extra tokens only in Dream: {'<|beginoftext|>': 151665, '<|mask|>': 151666}
+extra tokens only in Qwen: {}
+[GATE] shared vocab ids identical: PASS  (151665 shared, 0 mismatched)
+[GATE] Dream extras are only <|beginoftext|>/<|mask|>: PASS
+[GATE] no Qwen-only tokens: PASS
+[GATE] Dream extras sit inside Qwen embedding table: PASS
+[GATE] encodings identical on sample strings (no special tokens): PASS  (8 strings)
+bos: ('<|beginoftext|>', 151665) (None, None) eos: (151643, 151643)
+[GATE] eos ids equal: PASS
+add_special_tokens=True: dream [6023] qwen [6023]
+[report] /home/aubrey/Repos/twostory/logs/phase0/01_lineage.json
+======================================================================
+Phase 0 / 01 lineage: PASS  (16/16 gates passed)
+======================================================================

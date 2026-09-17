@@ -1,0 +1,16 @@
+{
+  "versions": {
+    "torch": "2.14.0+xpu",
+    "transformers": "4.57.6",
+    "peft": "0.21.0",
+    "bitsandbytes": "0.50.2",
+    "accelerate": "1.15.0",
+    "xpu_device": "Intel(R) Arc(TM) Pro B70 Graphics"
+  },
+  "ram_total_gib": 15.04,
+  "ram_avail_gib": 9.59,
+  "swap_total_gib": 20.0,
+  "swap_free_gib": 13.84,
+  "disk_free_gib": 71.15,
+  "bnb_int8_rel_err": 0.005012091714888811
+}

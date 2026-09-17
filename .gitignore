@@ -1,0 +1,21 @@
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+checkpoints/
+# data: keep only the frozen prompt set and the token-split manifest
+data/*
+!data/prompt_set.json
+!data/prompt_set.sha256
+!data/tokens/
+data/tokens/*
+!data/tokens/meta.json
+# logs: keep phase reports (baseline_A is the Phase 1 regression target); drop scratch
+logs/*
+!logs/phase0/
+logs/phase0/tiny_qwen2/
+# re-downloadable tokenizer blobs
+reference/*/.cache/
+reference/*/tokenizer.json
+reference/*/vocab.json
+reference/*/merges.txt

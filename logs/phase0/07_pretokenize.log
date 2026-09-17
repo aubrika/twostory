@@ -1,0 +1,50 @@
+[GATE] parquet shards present: PASS  (['000_00000.parquet', '001_00000.parquet'])
+  21M tokens, 20480 docs, 20729 seqs, 12s
+  41M tokens, 38912 docs, 39607 seqs, 20s
+  60M tokens, 57344 docs, 58610 seqs, 27s
+  81M tokens, 76800 docs, 78823 seqs, 35s
+  101M tokens, 97280 docs, 98635 seqs, 42s
+Token indices sequence length is longer than the specified maximum sequence length for this model (159977 > 131072). Running this sequence through the model will result in indexing errors
+  120M tokens, 115712 docs, 117206 seqs, 50s
+  140M tokens, 136192 docs, 137184 seqs, 57s
+  161M tokens, 155648 docs, 156760 seqs, 65s
+  180M tokens, 175104 docs, 176257 seqs, 72s
+  201M tokens, 195584 docs, 196206 seqs, 80s
+  221M tokens, 215040 docs, 215773 seqs, 88s
+  240M tokens, 234496 docs, 234740 seqs, 95s
+  260M tokens, 253952 docs, 253921 seqs, 102s
+  281M tokens, 274432 docs, 274095 seqs, 110s
+  301M tokens, 293888 docs, 293706 seqs, 118s
+  320M tokens, 313344 docs, 312568 seqs, 125s
+  340M tokens, 332800 docs, 332331 seqs, 133s
+  360M tokens, 352256 docs, 351929 seqs, 140s
+  380M tokens, 370688 docs, 371216 seqs, 148s
+  400M tokens, 390144 docs, 391094 seqs, 156s
+{
+  "tokenizer": "Qwen/Qwen2.5-7B",
+  "eos_id": 151643,
+  "seq_len": 1024,
+  "dtype": "uint32",
+  "n_sequences": 391094,
+  "n_heldout": 7822,
+  "n_train": 383272,
+  "n_tokens": 400480256,
+  "n_docs": 390144,
+  "heldout_every": 50,
+  "max_token_id": 151643,
+  "source_files": [
+    "000_00000.parquet",
+    "001_00000.parquet"
+  ],
+  "seconds": 156,
+  "sha256_heldout": "b73ab58c4bbd806cc7e3a8de255d8235341545161e3e9835429b8e62852cf202",
+  "sha256_train": "2737ced80afca1ccf6c50f3b0425a71b67fa30ffdb0a9f7dc98578d53986a582"
+}
+[GATE] reached target token count: PASS  (400.5M)
+[GATE] held-out split written and hashed: PASS  (7822 seqs, sha256 b73ab58c4bbd806c...)
+[GATE] all token ids < vocab_size: PASS  (151643)
+[GATE] heldout fraction ~2%: PASS
+[report] /home/aubrey/Repos/twostory/logs/phase0/07_pretokenize.json
+======================================================================
+Phase 0 / 07 pretokenize: PASS  (5/5 gates passed)
+======================================================================

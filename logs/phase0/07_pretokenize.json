@@ -1,0 +1,20 @@
+{
+  "tokenizer": "Qwen/Qwen2.5-7B",
+  "eos_id": 151643,
+  "seq_len": 1024,
+  "dtype": "uint32",
+  "n_sequences": 391094,
+  "n_heldout": 7822,
+  "n_train": 383272,
+  "n_tokens": 400480256,
+  "n_docs": 390144,
+  "heldout_every": 50,
+  "max_token_id": 151643,
+  "source_files": [
+    "000_00000.parquet",
+    "001_00000.parquet"
+  ],
+  "seconds": 156,
+  "sha256_heldout": "b73ab58c4bbd806cc7e3a8de255d8235341545161e3e9835429b8e62852cf202",
+  "sha256_train": "2737ced80afca1ccf6c50f3b0425a71b67fa30ffdb0a9f7dc98578d53986a582"
+}

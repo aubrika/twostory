@@ -1,0 +1,73 @@
+{
+  "config": {
+    "hidden_size": {
+      "dream": 3584,
+      "qwen": 3584
+    },
+    "num_hidden_layers": {
+      "dream": 28,
+      "qwen": 28
+    },
+    "num_attention_heads": {
+      "dream": 28,
+      "qwen": 28
+    },
+    "num_key_value_heads": {
+      "dream": 4,
+      "qwen": 4
+    },
+    "intermediate_size": {
+      "dream": 18944,
+      "qwen": 18944
+    },
+    "vocab_size": {
+      "dream": 152064,
+      "qwen": 152064
+    },
+    "rope_theta": {
+      "dream": 1000000.0,
+      "qwen": 1000000.0
+    },
+    "rms_norm_eps": {
+      "dream": 1e-06,
+      "qwen": 1e-06
+    },
+    "hidden_act": {
+      "dream": "silu",
+      "qwen": "silu"
+    },
+    "tie_word_embeddings": {
+      "dream": false,
+      "qwen": false
+    }
+  },
+  "dream_mask_token_id": 151666,
+  "extra_in_dream": {
+    "<|beginoftext|>": 151665,
+    "<|mask|>": 151666
+  },
+  "extra_in_qwen": {},
+  "shared_vocab_size": 151665,
+  "id_mismatches": 0,
+  "shared_vocab_hash_dream": "0bcfe76c695a7b4b08e77e8b48ebc15335d1afe61759dfec50312fc0dfbaee39",
+  "shared_vocab_hash_qwen": "0bcfe76c695a7b4b08e77e8b48ebc15335d1afe61759dfec50312fc0dfbaee39",
+  "encoding_mismatches": [],
+  "dream_bos": [
+    "<|beginoftext|>",
+    151665
+  ],
+  "qwen_bos": [
+    null,
+    null
+  ],
+  "eos": [
+    151643,
+    151643
+  ],
+  "dream_add_special": [
+    6023
+  ],
+  "qwen_add_special": [
+    6023
+  ]
+}

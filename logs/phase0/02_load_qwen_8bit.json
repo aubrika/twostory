@@ -1,0 +1,19 @@
+{
+  "bits": 8,
+  "load": {
+    "seconds": 47.8,
+    "vram_peak_alloc_gib": 8.79,
+    "vram_peak_reserved_gib": 9.64,
+    "vram_now_gib": 8.12,
+    "rss_peak_gib": 5.02,
+    "swap_growth_gib": 0.34
+  },
+  "forward": {
+    "seconds": 5.3,
+    "vram_peak_alloc_gib": 8.23,
+    "vram_peak_reserved_gib": 9.65,
+    "vram_now_gib": 8.14,
+    "rss_peak_gib": 5.02,
+    "swap_growth_gib": 0.47
+  }
+}
