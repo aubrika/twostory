@@ -12,6 +12,13 @@ from pathlib import Path
 import warnings
 import torch
 
+# Triton-XPU (used by bitsandbytes' 8-bit optimizers and NF4) builds a driver shim against the Level Zero headers.
+# The system has the loader but not the -dev headers; they live in ~/.local (see docs/PHASE2_REPORT.md).
+_ze = os.path.expanduser("~/.local")
+if os.path.exists(os.path.join(_ze, "include", "level_zero", "ze_api.h")):
+    os.environ.setdefault("ZE_PATH", _ze)
+    os.environ["LIBRARY_PATH"] = os.path.join(_ze, "lib") + os.pathsep + os.environ.get("LIBRARY_PATH", "")
+
 warnings.filterwarnings("ignore", message=".*MatMul8bitLt.*")
 warnings.filterwarnings("ignore", message=".*torch_dtype.*")
 

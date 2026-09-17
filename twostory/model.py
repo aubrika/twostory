@@ -170,7 +170,7 @@ class TwoStory:
 
     # ------------------------------------------------------------------ training forward
     def training_loss(self, seq: torch.LongTensor, ctx_len: int, block_size: int, t: torch.Tensor | None = None,
-                      eps: float = 1e-3, weight_by_t: bool = True):
+                      eps: float = 1e-3, weight_by_t: bool = True, generator: torch.Generator | None = None):
         """One packed sequence [1, L] -> masked-block diffusion loss with the prompt supplied via the cache.
         Blocks j cover [ctx_len + jB, ctx_len + (j+1)B); block j cross-attends to cache positions < its start
         (causal over context), self-attends bidirectionally within [anchor, block]. Loss on masked targets only."""
@@ -185,11 +185,11 @@ class TwoStory:
         targets = seq[0][starts[:, None] + torch.arange(block_size, device=dev)]          # [n, B]
         anchors = seq[0][starts - 1][:, None]                                             # [n, 1]
         if t is None:
-            t = torch.rand(n, device=dev).clamp_(eps, 1.0)
-        masked = torch.rand(n, block_size, device=dev) < t[:, None]
+            t = torch.rand(n, device=dev, generator=generator).clamp_(eps, 1.0)
+        masked = torch.rand(n, block_size, device=dev, generator=generator) < t[:, None]
         # ensure at least one masked token per block
         none = ~masked.any(1)
-        masked[none, torch.randint(0, block_size, (int(none.sum()),), device=dev)] = True
+        masked[none, torch.randint(0, block_size, (int(none.sum()),), device=dev, generator=generator)] = True
         x = torch.cat([anchors, torch.where(masked, torch.full_like(targets, self.mask_id), targets)], dim=1)  # [n, B+1]
         pos = (starts - 1)[:, None] + torch.arange(block_size + 1, device=dev)[None]      # [n, B+1]
         key_pos = torch.arange(L, device=dev)
