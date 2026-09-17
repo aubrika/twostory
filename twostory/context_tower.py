@@ -12,9 +12,12 @@ def _layer_kv(cache, i):
 
 
 class ContextTower:
-    def __init__(self, qwen):
+    def __init__(self, qwen, drop_lm_head: bool = True):
         self.qwen = qwen
         self.base = qwen.model  # Qwen2Model: skip lm_head, the tower never needs logits
+        if drop_lm_head and isinstance(getattr(qwen, "lm_head", None), torch.nn.Linear):
+            qwen.lm_head = torch.nn.Identity()  # frees 1.09 GiB of bf16 weights the context tower never uses
+            import gc; gc.collect(); torch.xpu.empty_cache()
         self.n_layers = qwen.config.num_hidden_layers
         self.cache = None
         self.length = 0

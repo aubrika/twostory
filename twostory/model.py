@@ -200,9 +200,14 @@ class TwoStory:
         pos = (starts - 1)[:, None] + torch.arange(block_size + 1, device=dev)[None]      # [n, B+1]
         key_pos = torch.arange(L, device=dev)
         ctx_mask = (key_pos[None, None, None, :] < starts[:, None, None, None]).expand(n, 1, block_size + 1, L)
-        logits = self.dream(x, position_ids=pos, ctx_kv=kv, ctx_mask=ctx_mask).logits          # [n, B+1, V]
-        pred = logits[:, :-1].float()                                                    # hidden i predicts token i+1
-        ce = F.cross_entropy(pred.reshape(-1, pred.shape[-1]), targets.reshape(-1), reduction="none").view(n, block_size)
-        w = (1.0 / t)[:, None] if weight_by_t else torch.ones_like(t)[:, None]
-        loss = (ce * masked * w).sum() / (masked.sum() * (w.mean() if weight_by_t else 1.0))
-        return loss, {"n_blocks": n, "n_masked": int(masked.sum()), "ce_masked_mean": ((ce.detach() * masked).sum() / masked.sum()).item()}
+        # Run the base model only, then project ONLY the masked prediction positions through lm_head: logits are
+        # [n_masked, V] instead of [n*(B+1), V] (fp32 logits were the largest activation; ~1.5 GiB at 24 blocks).
+        hidden = self.dream.model(input_ids=x, position_ids=pos, ctx_kv=kv, ctx_mask=ctx_mask, use_cache=False).last_hidden_state
+        h_pred = hidden[:, :-1][masked]                                                  # hidden i predicts token i+1
+        logits = self.dream.lm_head(h_pred).float()                                      # [M, V]
+        ce = F.cross_entropy(logits, targets[masked], reduction="none")                  # [M]
+        w = (1.0 / t) if weight_by_t else torch.ones_like(t)
+        w_tok = w[:, None].expand(n, block_size)[masked]
+        loss = (ce * w_tok).sum() / (masked.sum() * w.mean())
+        ce_mean = ce.detach().mean().item()
+        return loss, {"n_blocks": n, "n_masked": int(masked.sum()), "ce_masked_mean": ce_mean}

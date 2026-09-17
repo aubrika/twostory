@@ -33,7 +33,7 @@ class TrainConfig:
     eval_every: int = 0            # 0 = never
     eval_seqs: int = 32
     eval_ctx: int = 512
-    ckpt_every_sec: float = 7200
+    ckpt_every_sec: float = 900         # 15 min: a driver wedge costs at most this much progress
     keep_best: bool = True
     early_stop_patience: int = 3   # consecutive eval increases before stopping (0 = off)
     log_every: int = 1
@@ -114,10 +114,16 @@ class Trainer:
         dt = time.perf_counter() - t0
         self.step += 1
         self.tokens_seen += len(seq_idx) * self.L
+        # Allocator guard: varying block counts fragment the caching allocator (29.4 GiB reserved vs 26.0 allocated in
+        # the Phase 3 diagnostic). Running the device out of VRAM makes kernels crawl past xe's 5 s job timeout and
+        # wedges the process, so hand cached blocks back whenever the slack gets large.
+        if torch.xpu.memory_reserved() - torch.xpu.memory_allocated() > 1.5 * 2**30:
+            torch.xpu.empty_cache()
+        dev_free = torch.xpu.mem_get_info()[0]
         rec = {"step": self.step, "loss": float(np.mean(losses)), "lr": lr, "grad_norm": gn, "seconds": round(dt, 3),
                "seq_tok_s": round(len(seq_idx) * self.L / dt, 1), "n_masked": n_masked, "tokens_seen": self.tokens_seen,
                "vram_alloc_gib": gib(torch.xpu.memory_allocated()), "vram_peak_gib": gib(torch.xpu.max_memory_allocated()),
-               "time": time.time()}
+               "vram_reserved_gib": gib(torch.xpu.memory_reserved()), "dev_free_gib": gib(dev_free), "time": time.time()}
         if self.step % c.log_every == 0:
             rec["gpu"] = {k: v for k, v in gpu_telemetry().items() if k in ("act_freq_mhz", "temp_max_c")}
             self.log_f.write(json.dumps(rec) + "\n"); self.log_f.flush()

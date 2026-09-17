@@ -18,6 +18,7 @@ ap.add_argument("--eval-seqs", type=int, default=32)
 ap.add_argument("--lora-rank", type=int, default=16)
 ap.add_argument("--run-name", default="phase3_pilot")
 ap.add_argument("--gen-tokens", type=int, default=64)
+ap.add_argument("--resume", action="store_true", help="resume from checkpoints/<run>/last.pt if present")
 a = ap.parse_args()
 
 tokq = load_tokenizer("qwen")
@@ -33,6 +34,10 @@ cfg = TrainConfig(steps=steps, batch_seqs=a.batch_seqs, lr=a.lr, warmup=a.warmup
                   run_name=a.run_name, early_stop_patience=3, log_every=1)
 tr = Trainer(ts, cfg)
 samples_f = open(tr.run_dir / "samples.jsonl", "a")
+resumed = False
+if a.resume and (tr.run_dir / "last.pt").exists():
+    st = tr.load_trainable(tr.run_dir / "last.pt"); resumed = True
+    print(f"RESUMED from step {tr.step} ({tr.tokens_seen} tokens), best eval {tr.best_eval}", flush=True)
 
 def sample_all(tag):
     ts.eval(); ts.dream.gradient_checkpointing_disable()
@@ -45,15 +50,19 @@ def sample_all(tag):
     return out
 
 print(f"pilot: {steps} steps x {a.batch_seqs} seqs = {steps*a.batch_seqs*1024/1e6:.1f}M tokens; eval every {a.eval_every}", flush=True)
-ev0 = tr.evaluate(); print(f"eval@0: {ev0}", flush=True)
-s0 = sample_all("step0"); print("sample@0:", repr(s0[0]["text"][:120]), flush=True)
-evals = [ev0]; t_start = time.time(); last_ckpt = time.time(); stopped_early = False
+if not resumed:
+    ev0 = tr.evaluate(); print(f"eval@0: {ev0}", flush=True)
+    s0 = sample_all("step0"); print("sample@0:", repr(s0[0]["text"][:120]), flush=True)
+    evals = [ev0]
+else:
+    evals = [{"step": -1, "eval_loss": v} for v in tr.eval_history] or [tr.evaluate()]
+t_start = time.time(); step_start = tr.step; last_ckpt = time.time(); stopped_early = False
 while tr.step < steps:
     rec = tr.train_step()
     if tr.step % 50 == 0 or tr.step <= 5:
-        el = time.time() - t_start; eta = el / tr.step * (steps - tr.step)
+        el = time.time() - t_start; eta = el / max(1, tr.step - step_start) * (steps - tr.step)
         print(f"step {tr.step:5d}/{steps} loss {rec['loss']:.4f} lr {rec['lr']:.2e} gn {rec['grad_norm']:.2f} {rec['seconds']:.2f}s "
-              f"{rec['seq_tok_s']:.0f} tok/s vram {rec['vram_alloc_gib']}/{rec['vram_peak_gib']} GiB "
+              f"{rec['seq_tok_s']:.0f} tok/s vram {rec['vram_alloc_gib']}/{rec['vram_peak_gib']} GiB free {rec['dev_free_gib']} "
               f"gpu {rec.get('gpu',{}).get('act_freq_mhz')}MHz {rec.get('gpu',{}).get('temp_max_c')}C  eta {eta/3600:.2f}h", flush=True)
     if not math.isfinite(rec["loss"]):
         print("NaN loss - stopping"); break
@@ -67,7 +76,7 @@ while tr.step < steps:
         if tr.should_early_stop():
             print("EARLY STOP: held-out loss rose 3 evals in a row", flush=True); stopped_early = True; break
     if time.time() - last_ckpt > cfg.ckpt_every_sec:
-        tr.save("last"); last_ckpt = time.time()
+        tr.save("last"); last_ckpt = time.time(); print(f"  saved last @ step {tr.step}", flush=True)
 tr.save("last")
 losses = [e["eval_loss"] for e in evals]
 x = np.arange(len(losses)); slope = float(np.polyfit(x, losses, 1)[0]) if len(losses) > 2 else float("nan")

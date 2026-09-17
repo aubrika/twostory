@@ -64,10 +64,21 @@ class CrossAttentionBridge(nn.Module):
         cos, sin = position_embeddings
         q = (q * cos.unsqueeze(1).to(q.dtype)) + (_rotate_half(q) * sin.unsqueeze(1).to(q.dtype))
         k = repeat_kv(k_ctx, self.n_rep); v = repeat_kv(v_ctx, self.n_rep)
-        if k.shape[0] != bsz:  # shared cache across a batch of blocks
-            k = k.expand(bsz, -1, -1, -1); v = v.expand(bsz, -1, -1, -1)
-        attn = F.scaled_dot_product_attention(q.to(k.dtype), k, v, attn_mask=ctx_mask, is_causal=False)
-        attn = attn.transpose(1, 2).reshape(bsz, L, h).to(x.dtype)
+        if k.shape[0] != bsz:
+            # One shared cache, many blocks. Do NOT expand K/V across the batch: on XPU, SDPA with stride-0 (expanded)
+            # K/V returns NaN under no_grad and picks a pathologically slow kernel (Phase 3 pilot hang, 2026-09-17), and a
+            # contiguous copy costs ~350 MB per layer at 24 blocks. Cross-attention is independent per query, so fold the
+            # blocks into the query-length dimension instead: q [bsz, H, L, d] -> [1, H, bsz*L, d]; K/V stay [1, H, T, d].
+            assert k.shape[0] == 1, "shared-cache path expects a single context sequence"
+            qf = q.transpose(0, 1).reshape(1, self.n_heads, bsz * L, self.head_dim)
+            mf = None if ctx_mask is None else ctx_mask.expand(bsz, 1, L, k.shape[2]).reshape(1, 1, bsz * L, k.shape[2])
+            attn = F.scaled_dot_product_attention(qf.to(k.dtype), k, v, attn_mask=mf, is_causal=False)
+            attn = attn.view(self.n_heads, bsz, L, self.head_dim).permute(1, 2, 0, 3).reshape(bsz, L, h).to(x.dtype)
+        else:
+            if ctx_mask is not None and not ctx_mask.is_contiguous():
+                ctx_mask = ctx_mask.contiguous()
+            attn = F.scaled_dot_product_attention(q.to(k.dtype), k, v, attn_mask=ctx_mask, is_causal=False)
+            attn = attn.transpose(1, 2).reshape(bsz, L, h).to(x.dtype)
         if self.out_low is not None:
             attn = self.out_low(attn)
         return self.out_proj(attn).to(in_dtype)
