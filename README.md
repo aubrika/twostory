@@ -9,8 +9,8 @@ on one Intel Arc Pro B70 (32 GB). Full protocol, gates, and rationale: [docs/PRO
 | Path | What |
 |---|---|
 | `docs/PROTOCOL.md` | The experimental protocol. Every phase has a go/no-go gate. |
-| `docs/PHASE{0,1,2}_REPORT.md` | Per-phase results and decisions. |
-| `phase0/`, `phase1/`, `phase2/` | One standalone script per checklist item. Each prints `[GATE] ...: PASS/FAIL` and a verdict; `run_all.sh` runs a phase in order. |
+| `docs/PHASE{0,1,2,3}_REPORT.md` | Per-phase results and decisions. |
+| `phase0/` … `phase3/` | One standalone script per checklist item. Each prints `[GATE] ...: PASS/FAIL` and a verdict; `run_all.sh` runs a phase in order. |
 | `twostory/` | `util.py` (loaders, memory, gates, provenance, telemetry), `prompts.py` (frozen prompts), `dream/` (vendored Dream + bridge hooks), `bridge.py`, `context_tower.py`, `model.py` (`TwoStory`: full/block generation, training loss). |
 | `reference/` | Unmodified configs, tokenizer files and Dream's remote modeling code, for reading and diffing. |
 | `logs/phase0/` | JSON reports and logs from each check. `baseline_A_dream_16bit.json` is the Phase 1 regression target. |
@@ -38,6 +38,8 @@ revisions are pinned in `twostory/util.py`. Data: two `sample/10BT` shards of `H
 phase0/run_all.sh            # everything, in order, stops at the first FAIL
 phase1/run_all.sh            # regression (token-identical to Baseline A) + gradient flow + block-mode smoke
 .venv/bin/python phase2/20_overfit.py   # overfit one batch; peak VRAM with optimizer state
+phase3/watchdog.sh                      # pilot under a progress watchdog (auto-resume), then throughput
+.venv/bin/python phase3/32_reference_loss.py   # T0 / T / D masked CE on identical blocks + steps sweep
 .venv/bin/python phase0/04_baseline_dream.py --bits 8   # or any single check
 ```
 

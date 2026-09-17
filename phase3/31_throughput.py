@@ -21,6 +21,12 @@ if a.ckpt:
 ts.eval(); ts.bridges_to(torch.bfloat16)
 prompts = {n: (PROMPT_SHORT if n == "short" else build_prompt(tokq, {"p512": 512, "p2k": 2048}[n])) for n in a.prompts.split(",")}
 
+def set_lora(on: bool):
+    from peft.tuners.tuners_utils import BaseTunerLayer
+    for mod in ts.dream.modules():
+        if isinstance(mod, BaseTunerLayer):
+            mod.enable_adapters(on)
+
 def med(fn, runs):
     fn(); vals = []
     for _ in range(runs):
@@ -33,9 +39,11 @@ for name, text in prompts.items():
     idq = tokq(text, return_tensors="pt").input_ids.to("xpu"); idd = tokd(text, return_tensors="pt").input_ids.to("xpu")
     r = {"prompt_tokens": idq.shape[1], "gpu_before": {k: gpu_telemetry()[k] for k in ("act_freq_mhz", "temp_max_c")}}
     ts.dream._ambient_ctx = (None, None)
+    set_lora(False)   # plain Dream: no bridge (no ambient ctx) AND no LoRA adapters
     for S in (128, 32):
         m, out = med(lambda: ts.dream.diffusion_generate(idd, max_new_tokens=a.new_tokens, steps=S, temperature=0.0, alg="entropy", alg_temp=None), a.runs)
         r[f"dream_S{S}"] = m | {"tok_s": round(a.new_tokens / m["median_s"], 2), "text": tokd.decode(out[0, idd.shape[1]:])[:200]}
+    set_lora(True)
     m, out = med(lambda: ts.generate_block(idq, max_new_tokens=a.new_tokens, block_size=a.block_size, steps=a.steps, stop_at_eos=False), a.runs)
     r["bridged"] = m | {"tok_s": round(a.new_tokens / m["median_s"], 2), "ttft_s": out["ttft_seconds"], "prefill_s": out["prefill_seconds"],
                         "per_block_s": [round(b["seconds"], 3) for b in out["blocks"]], "text": tokq.decode(out["ids"])[:200]}
@@ -47,6 +55,6 @@ for name in prompts:
         rr = rep["results"][name]
         gate(f"[{name}] bridged faster than Baseline A (Dream S=128)", rr["bridged"]["tok_s"] > rr["dream_S128"]["tok_s"], f"{rr['bridged']['tok_s']} vs {rr['dream_S128']['tok_s']}")
         gate(f"[{name}] bridged faster than Dream at equal forwards (S=32)", rr["bridged"]["tok_s"] > rr["dream_S32"]["tok_s"], f"{rr['bridged']['tok_s']} vs {rr['dream_S32']['tok_s']}")
-tag = "trained" if a.ckpt else "T0"
+tag = ("trained" if a.ckpt else "T0") + "_plainD"
 write_report(f"31_throughput_{tag}", rep, subdir="phase3")
 finish(f"Phase 3 / 31 throughput ({tag})")
