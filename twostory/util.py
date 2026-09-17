@@ -23,6 +23,10 @@ QWEN_ID = "Qwen/Qwen2.5-7B"
 DREAM_REV = "6572adb5535263e4d1a337b56942ba48b6dee2a9"
 QWEN_REV = "d149729398750b98c0af14eb82c78cfe92750796"
 DEVICE = "xpu:0"
+# Memory plan (revised 2026-09-17 after measuring bnb int8 at 4-8x slower than bf16 on XPU):
+# denoiser runs every denoising step -> bf16; context tower runs once per committed block -> int8.
+DENOISER_BITS = 16
+CONTEXT_BITS = 8
 
 
 # --------------------------------------------------------------------------- gates
@@ -124,7 +128,7 @@ def _load_kwargs(bits: int) -> dict:
     return kw
 
 
-def load_qwen(bits: int = 8):
+def load_qwen(bits: int = CONTEXT_BITS):
     """Frozen context tower: Qwen2.5-7B causal LM."""
     from transformers import AutoModelForCausalLM
 
@@ -135,7 +139,7 @@ def load_qwen(bits: int = 8):
     return m
 
 
-def load_dream(bits: int = 8, model_id: str = DREAM_ID):
+def load_dream(bits: int = DENOISER_BITS, model_id: str = DREAM_ID):
     """Denoiser tower: Dream-7B via its own remote modeling code (unmodified)."""
     from transformers import AutoModel
 

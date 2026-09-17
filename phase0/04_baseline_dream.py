@@ -1,11 +1,11 @@
 """Phase 0 / 04: Baseline A. Dream-7B's own diffusion generation, deterministic, with tokens/sec.
 The saved token ids are the Phase 1 regression target: the zero-init bridged model must reproduce them exactly."""
 import argparse, time, torch
-from twostory.util import gate, finish, write_report, MemTracker, load_dream, load_tokenizer
+from twostory.util import gate, finish, write_report, MemTracker, load_dream, load_tokenizer, DENOISER_BITS
 from twostory.prompts import PROMPT_SHORT, build_prompt
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--bits", type=int, default=8)
+ap.add_argument("--bits", type=int, default=DENOISER_BITS)
 ap.add_argument("--new-tokens", type=int, default=128)
 ap.add_argument("--steps", type=int, default=128)
 ap.add_argument("--prompts", default="short,p512")

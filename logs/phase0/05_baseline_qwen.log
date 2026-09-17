@@ -1,17 +1,16 @@
-The attention mask is not set and cannot be inferred from input because pad token is same as eos token. As a consequence, you may observe unexpected behavior. Please pass your input's `attention_mask` to obtain reliable results.
-load: {'seconds': 47.4, 'vram_peak_alloc_gib': 8.79, 'vram_peak_reserved_gib': 9.64, 'vram_now_gib': 8.12, 'rss_peak_gib': 5.01, 'swap_growth_gib': 0.02}
+load: {'seconds': 37.0, 'vram_peak_alloc_gib': 14.19, 'vram_peak_reserved_gib': 14.21, 'vram_now_gib': 14.19, 'rss_peak_gib': 4.2, 'swap_growth_gib': -0.14}
 warmup...
 
-=== [short] prompt 40 tok -> 128 new in 31.7s = 4.03 tok/s
-1850 saw the first lighthouse built on the cape, a 10 metre high wooden tower. The light was lit on 1st January 1851. The light was a fixed white light, 15 metres above sea level, and was visible for 12 miles. The light was lit by a single oil lamp, and was tended by a keeper. The light was replaced by a more powerful one in 1854, and a new tower was built in 1856. The new tower was 12 metres high, and was made of cast iron. The light
+=== [short] prompt 40 tok -> 128 new in 3.9s = 32.55 tok/s
+1850 saw the first lighthouse built on the cape, a 10 metre high wooden tower. This was replaced in 1854 by a 12 metre high stone tower. This was replaced in 1875 by a 15 metre high stone tower. This was replaced in 1903 by a 17 metre high stone tower. This was replaced in 1912 by a 19 metre high stone tower. This was replaced in 1930 by a 21 metre high stone tower. This was replaced in 1950 by
 [GATE] [short] deterministic across two runs: PASS
-[GATE] [short] non-degenerate output: PASS  (55 distinct tokens)
+[GATE] [short] non-degenerate output: PASS  (31 distinct tokens)
 
-=== [p512] prompt 512 tok -> 128 new in 31.7s = 4.04 tok/s
+=== [p512] prompt 512 tok -> 128 new in 4.0s = 31.67 tok/s
 1889 after complaints from masters that it was confused with the lights of the town. Fog signalling began with a bell, then a reed horn, and finally a siren driven by compressed air from an engine house at the foot of the tower. Over the following decade the board kept careful records of every wreck on the northern reef, noting the vessel, the cargo, the weather, and the loss of life. These ledgers survive in the county archive and form the basis of the present account. The keeper's cottage was built of local granite, with a slate roof that was replaced three times before the present iron shee
 [GATE] [p512] deterministic across two runs: PASS
 [GATE] [p512] non-degenerate output: PASS  (86 distinct tokens)
-[report] /home/aubrey/Repos/twostory/logs/phase0/baseline_B_qwen_8bit.json
+[report] /home/aubrey/Repos/twostory/logs/phase0/baseline_B_qwen_16bit.json
 ======================================================================
 Phase 0 / 05 baseline B (Qwen AR): PASS  (4/4 gates passed)
 ======================================================================

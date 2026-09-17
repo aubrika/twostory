@@ -13,7 +13,7 @@ on one Intel Arc Pro B70 (32 GB). Full protocol, gates, and rationale: [docs/PRO
 | `phase0/` | One standalone script per Phase 0 checklist item. Each prints `[GATE] ...: PASS/FAIL` and a verdict. |
 | `twostory/` | Shared package: `util.py` (loaders, memory tracking, gates), `prompts.py` (fixed prompts). |
 | `reference/` | Unmodified configs, tokenizer files and Dream's remote modeling code, for reading and diffing. |
-| `logs/phase0/` | JSON reports and logs from each check. `baseline_A_dream_8bit.json` is the Phase 1 regression target. |
+| `logs/phase0/` | JSON reports and logs from each check. `baseline_A_dream_16bit.json` is the Phase 1 regression target. |
 | `data/` | (git-ignored) FineWeb-Edu parquet shards and the pre-tokenized `tokens/{train,heldout}.bin`. |
 
 ## Setup
@@ -35,6 +35,12 @@ revisions are pinned in `twostory/util.py`. Data: two `sample/10BT` shards of `H
 phase0/run_all.sh            # everything, in order, stops at the first FAIL
 .venv/bin/python phase0/04_baseline_dream.py --bits 8   # or any single check
 ```
+
+## Memory plan
+
+Denoiser (Dream) in **bf16**, context tower (Qwen) in **int8** via bitsandbytes' XPU wheel: 22.3 GiB resident.
+int8 on XPU is 4-8x slower than bf16 per linear, so only the tower that runs once per block is quantised.
+See the addendum in `docs/PHASE0_REPORT.md`.
 
 ## Rules
 

@@ -1,0 +1,21 @@
+{
+  "context_bits": 8,
+  "denoiser_bits": 16,
+  "qwen": {
+    "seconds": 55.4,
+    "vram_peak_alloc_gib": 8.79,
+    "vram_peak_reserved_gib": 9.64,
+    "vram_now_gib": 8.12,
+    "rss_peak_gib": 4.87,
+    "swap_growth_gib": 0.57
+  },
+  "dream": {
+    "seconds": 34.6,
+    "vram_peak_alloc_gib": 22.31,
+    "vram_peak_reserved_gib": 22.43,
+    "vram_now_gib": 22.31,
+    "rss_peak_gib": 4.87,
+    "swap_growth_gib": 0.16
+  },
+  "both_alloc_gib": 22.31
+}

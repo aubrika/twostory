@@ -1,0 +1,11 @@
+qwen: {'seconds': 55.4, 'vram_peak_alloc_gib': 8.79, 'vram_peak_reserved_gib': 9.64, 'vram_now_gib': 8.12, 'rss_peak_gib': 4.87, 'swap_growth_gib': 0.57}
+dream: {'seconds': 34.6, 'vram_peak_alloc_gib': 22.31, 'vram_peak_reserved_gib': 22.43, 'vram_now_gib': 22.31, 'rss_peak_gib': 4.87, 'swap_growth_gib': 0.16}
+both resident: 22.31 GiB allocated, 22.43 GiB reserved
+[GATE] dream loads without swap growth: PASS  (rss peak 4.87 GiB)
+[GATE] both towers resident <= 24 GiB: PASS  (22.31 GiB)
+[GATE] dream forward finite on XPU: PASS
+[GATE] dream logits shape: PASS  ((1, 64, 152064))
+[report] /home/aubrey/Repos/twostory/logs/phase0/03_load_both_ctx8_den16.json
+======================================================================
+Phase 0 / 03 load both: PASS  (4/4 gates passed)
+======================================================================

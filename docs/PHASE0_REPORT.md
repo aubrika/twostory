@@ -42,3 +42,31 @@ Raw reports: `logs/phase0/*.json`. Rerun everything with `phase0/run_all.sh`.
 - Every results file carries `util.provenance()` (commit, dirty flag, pinned revisions, pip freeze) and `util.gpu_telemetry()`
   (xe clock, temperature, power) per run.
 - The T₀ row (zero-init bridge, untrained) is the Phase 1 regression gate and stays in the final table.
+
+## Addendum (2026-09-17): memory plan revised to bf16 denoiser + int8 context tower
+
+**Why.** Measured, not assumed: bitsandbytes' int8 linear on XPU is 4-8x *slower* than bf16 at every shape
+(0.23 ms vs 1.92 ms for the 3584→18944 MLP linear at batch 1). bf16 already runs at ~550 GB/s effective at batch 1,
+i.e. at the card's bandwidth ceiling, so int8 cannot buy speed here; the unfused int8→bf16 conversion costs more than
+the matmul it feeds. A naive weight-only int8 dequant is just as slow (1.75 ms), so it is the dequant, not bnb specifically.
+Only a fused dequant-in-GEMV kernel would win, and none exists for XPU in PyTorch today (NF4 needs Triton-XPU, which
+fails to build here for lack of the Level Zero headers).
+
+**New plan.** `twostory/util.py`: `DENOISER_BITS = 16` (Dream runs every denoising step), `CONTEXT_BITS = 8`
+(Qwen runs once per committed block at prefill shapes, where the int8 penalty is smaller and amortised).
+
+| | int8 both (original) | bf16 denoiser + int8 context (now) |
+|---|---|---|
+| Both towers resident | 16.24 GiB | **22.31 GiB** (`03_load_both_ctx8_den16.json`) |
+| Headroom for LoRA/bridge/Adam/activations | ~15 GiB | ~9.5 GiB (Phase 2 proves or shrinks it) |
+| Baseline A: Dream 128 tok / 128 steps, short prompt | 3.19 tok/s | **21.12 tok/s** |
+| Baseline A: Dream, 512-tok prompt | 1.77 tok/s | **9.61 tok/s** |
+| Baseline B: Qwen greedy, short / 512 | 4.03 / 4.04 tok/s | **32.55 / 31.67 tok/s** |
+
+Both baselines remain deterministic and coherent. **The Phase 1 regression target is now
+`logs/phase0/baseline_A_dream_16bit.json`.** The 8-bit files are kept as a record.
+
+**Open experiment (user's idea):** the bridge is trained against KV caches produced by the *int8* context tower. After
+training, swap in the bf16 Qwen tower (both bf16 = 28.4 GiB, fits for inference) and measure. Per-layer int8 error is
+~0.5%, so the bridge should transfer with a small shift, as QLoRA adapters do when merged onto full-precision bases, but it
+is an empirical question: the benchmark harness gets an extra row, T with bf16 context tower, to answer it.

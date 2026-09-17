@@ -4,7 +4,7 @@ from twostory.util import gate, finish, write_report, MemTracker, load_qwen, loa
 from twostory.prompts import PROMPT_SHORT, build_prompt
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--bits", type=int, default=8)
+ap.add_argument("--bits", type=int, default=16)
 ap.add_argument("--new-tokens", type=int, default=128)
 ap.add_argument("--prompts", default="short,p512")
 a = ap.parse_args()
