@@ -9,9 +9,9 @@ on one Intel Arc Pro B70 (32 GB). Full protocol, gates, and rationale: [docs/PRO
 | Path | What |
 |---|---|
 | `docs/PROTOCOL.md` | The experimental protocol. Every phase has a go/no-go gate. |
-| `docs/PHASE0_REPORT.md` | Phase 0 results and decisions. |
-| `phase0/` | One standalone script per Phase 0 checklist item. Each prints `[GATE] ...: PASS/FAIL` and a verdict. |
-| `twostory/` | Shared package: `util.py` (loaders, memory tracking, gates), `prompts.py` (fixed prompts). |
+| `docs/PHASE0_REPORT.md`, `docs/PHASE1_REPORT.md` | Per-phase results and decisions. |
+| `phase0/`, `phase1/` | One standalone script per checklist item. Each prints `[GATE] ...: PASS/FAIL` and a verdict; `run_all.sh` runs a phase in order. |
+| `twostory/` | `util.py` (loaders, memory, gates, provenance, telemetry), `prompts.py` (frozen prompts), `dream/` (vendored Dream + bridge hooks), `bridge.py`, `context_tower.py`, `model.py` (`TwoStory`: full/block generation, training loss). |
 | `reference/` | Unmodified configs, tokenizer files and Dream's remote modeling code, for reading and diffing. |
 | `logs/phase0/` | JSON reports and logs from each check. `baseline_A_dream_16bit.json` is the Phase 1 regression target. |
 | `data/` | (git-ignored) FineWeb-Edu parquet shards and the pre-tokenized `tokens/{train,heldout}.bin`. |
@@ -29,10 +29,11 @@ Weights live in the default HF cache (`hf download Dream-org/Dream-v0-Base-7B`, 
 revisions are pinned in `twostory/util.py`. Data: two `sample/10BT` shards of `HuggingFaceFW/fineweb-edu` under
 `data/fineweb-edu/`.
 
-## Running Phase 0
+## Running a phase
 
 ```bash
 phase0/run_all.sh            # everything, in order, stops at the first FAIL
+phase1/run_all.sh            # regression (token-identical to Baseline A) + gradient flow + block-mode smoke
 .venv/bin/python phase0/04_baseline_dream.py --bits 8   # or any single check
 ```
 
