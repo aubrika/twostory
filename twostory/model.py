@@ -75,6 +75,12 @@ class TwoStory:
                   sum(p.numel() for p in self.ctx.qwen.parameters() if p.requires_grad)
         return {"bridge": n_bridge, "lora": n_lora, "trainable_total": n_train, "dream_total": n_dream, "qwen_total": n_qwen}
 
+    def bridges_to(self, dtype):
+        """Cast bridge params (fp32 for training) to `dtype` for inference/benchmarking."""
+        for b in self.bridges:
+            b.to(dtype)
+        return self
+
     def train(self, mode=True):
         self.dream.train(mode)
         return self
