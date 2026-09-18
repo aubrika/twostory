@@ -154,14 +154,23 @@ class Trainer:
         self.ts.eval()
         n = n_seqs or c.eval_seqs
         g = torch.Generator(device="xpu")
-        tot, cnt, ces, wsum, wn = 0.0, 0, [], 0.0, 0
+        tot, cnt, ces, wsum, wn, nonfinite = 0.0, 0, [], 0.0, 0, []
         for i in range(n):
             g.manual_seed(10_000 + i)  # same t and masks for sequence i every time
             loss, info = self.ts.training_loss(self.seq(self.held, i), c.eval_ctx, c.block_size, weight_by_t=c.weight_by_t, generator=g)
-            tot += loss.item(); cnt += 1; ces.append(info["ce_masked_mean"])
+            li = loss.item()
+            if not (math.isfinite(li) and math.isfinite(info["ce_masked_mean"])):
+                nonfinite.append(i); continue  # score the rest; record the culprit
+            tot += li; cnt += 1; ces.append(info["ce_masked_mean"])
             wsum += info["ce_masked_mean"] * info["n_masked"]; wn += info["n_masked"]
-        res = {"step": self.step, "eval_loss": tot / cnt, "eval_ce_masked": float(np.mean(ces)), "eval_ce_token_weighted": wsum / wn,
-               "n_seqs": cnt, "time": time.time()}
+        res = {"step": self.step, "eval_loss": tot / max(cnt, 1), "eval_ce_masked": float(np.mean(ces)) if ces else float("nan"),
+               "eval_ce_token_weighted": wsum / max(wn, 1), "n_seqs": cnt, "nonfinite_seqs": nonfinite, "time": time.time()}
+        if nonfinite:
+            print(f"  EVAL WARNING: non-finite loss on held-out seqs {nonfinite} at step {self.step}; dumping checkpoint for diagnosis", flush=True)
+            dumps = sorted(self.run_dir.glob("nan_eval_*.pt"))
+            for old in dumps[:-1]:
+                old.unlink()  # keep at most two dumps on disk
+            self.save(f"nan_eval_step{self.step}")
         if self.ref and n == 32 and c.eval_ctx == 512:  # same sequences/masks as phase3/32_reference_loss.py
             t0, d = self.ref["T0_untrained"], min(self.ref["D_full_context_bos0"], self.ref["D_full_context_bos1"])
             res["gap_closed"] = (t0 - res["eval_ce_token_weighted"]) / (t0 - d)
