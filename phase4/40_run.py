@@ -76,6 +76,8 @@ while tr.step < steps:
         if tr.should_early_stop(): reason = "EARLY STOP: held-out loss rose 3 evals in a row"; break
     if time.time() - last_ckpt > cfg.ckpt_every_sec:
         tr.save("last"); last_ckpt = time.time()
+    if cfg.schedule == "wsd" and tr.step == int(steps * (1 - a.decay_frac)) and not (run / "predecay.pt").exists():
+        tr.save("predecay"); print(f"  saved predecay checkpoint at step {tr.step}: a longer plateau (bigger --total-tokens) can resume from it", flush=True)
     if stop_file.exists(): stop.update(flag=True, reason="STOP file")
     if stop["flag"]: reason = f"stop requested ({stop['reason']})"; break
     if time.time() - seg_start > a.max_hours * 3600: reason = f"segment time limit ({a.max_hours} h)"; break
