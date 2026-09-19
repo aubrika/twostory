@@ -37,9 +37,9 @@ def load_dream_vendored(bits: int = DENOISER_BITS):
 
 
 class TwoStory:
-    def __init__(self, dream, qwen, bridge_cfg: BridgeConfig | None = None, lora: LoraSpec | None = None):
+    def __init__(self, dream, qwen, bridge_cfg: BridgeConfig | None = None, lora: LoraSpec | None = None, keep_lm_head: bool = False):
         self.dream = dream
-        self.ctx = ContextTower(qwen)
+        self.ctx = ContextTower(qwen, drop_lm_head=not keep_lm_head)
         self.mask_id = dream.config.mask_token_id
         self.eos_id = dream.config.eos_token_id
         self.bridges = attach_bridges(dream, bridge_cfg or BridgeConfig(), DEVICE)
@@ -57,10 +57,10 @@ class TwoStory:
             p.requires_grad_(True)
 
     @classmethod
-    def load(cls, bridge_cfg=None, lora=None, denoiser_bits=DENOISER_BITS, context_bits=CONTEXT_BITS):
+    def load(cls, bridge_cfg=None, lora=None, denoiser_bits=DENOISER_BITS, context_bits=CONTEXT_BITS, keep_lm_head=False):
         qwen = load_qwen(context_bits)
         dream = load_dream_vendored(denoiser_bits)
-        return cls(dream, qwen, bridge_cfg, lora)
+        return cls(dream, qwen, bridge_cfg, lora, keep_lm_head=keep_lm_head)
 
     # ------------------------------------------------------------------ parameters
     def trainable_parameters(self):
