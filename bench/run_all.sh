@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."; PY=.venv/bin/python; STALE_SEC=${STALE_SEC:-1500}; MAX_
 SESSIONS=("$@"); [ ${#SESSIONS[@]} -eq 0 ] && SESSIONS=(main q swap gsm gsmq)
 mkdir -p logs/phase5; log(){ echo "[bench $(date '+%F %T')] $*"; }
 for s in "${SESSIONS[@]}"; do
-  restarts=0; raw=logs/phase5/raw_$s.jsonl
+  restarts=0; raw=logs/phase5/raw_${s%ce}.jsonl
   while :; do
     log "session $s launch (restart #$restarts)"
     $PY -u -m bench.run_bench --session $s >> logs/phase5/$s.log 2>&1 &
@@ -17,6 +17,7 @@ for s in "${SESSIONS[@]}"; do
     done
     wait $pid; rc=$?
     if [ $rc -eq 0 ] && [ $stale -eq 0 ] && tail -5 logs/phase5/$s.log | grep -q "SESSION COMPLETE"; then log "session $s complete"; break; fi
+    if [ $rc -eq 4 ]; then log "session $s: VRAM guard tripped, not restarting"; break; fi
     restarts=$((restarts+1)); log "session $s exited rc=$rc stale=$stale"
     if [ $restarts -ge $MAX_RESTARTS ]; then log "session $s: giving up after $restarts restarts"; break; fi
     sleep 30

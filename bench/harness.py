@@ -70,12 +70,12 @@ def rep_rate(ids):
 
 # =============================================================================== main session: D / T0 / T (+ Tbf16)
 class MainSession:
-    def __init__(self, ckpt: str, context_bits: int = 8, bridge_dtype=torch.bfloat16):
+    def __init__(self, ckpt: str, context_bits: int = 8, bridge_dtype=torch.bfloat16, keep_lm_head: bool = True):
         from twostory.model import TwoStory, LoraSpec
         from twostory.bridge import BridgeConfig, bridge_state_dict
         from twostory.train import Trainer, TrainConfig
 
-        self.ts = TwoStory.load(BridgeConfig(), LoraSpec(rank=16), context_bits=context_bits, keep_lm_head=True)
+        self.ts = TwoStory.load(BridgeConfig(), LoraSpec(rank=16), context_bits=context_bits, keep_lm_head=keep_lm_head)
         self.tr = Trainer(self.ts, TrainConfig(run_name="bench_tmp", grad_checkpointing=False))
         self.tr.load_trainable(REPO / ckpt, load_optimizer=False)
         self.ts.eval(); self.ts.bridges_to(bridge_dtype)

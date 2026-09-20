@@ -6,26 +6,35 @@ systems equally; warm-up per system; N repeats; raw JSONL with telemetry, proven
   --session q    : Q greedy on all tiers; Q held-out AR perplexity; Q judge-NLL of its own generations (biased; recorded as such).
   --session swap : T with the bf16 context tower (user's experiment): all tiers x runs; held-out masked CE.
   --session gsm  : GSM8K 200-item 4-shot exact match for D and T.   --session gsmq : same for Q."""
-import argparse, json, re, time
+import argparse, json, re, sys, time
 import numpy as np, torch
 from twostory.util import REPO, gpu_telemetry
 from bench.harness import MainSession, QSession, Recorder, load_prompt_set, session_header, rep_rate, BOS_DREAM
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--session", required=True, choices=["main", "q", "swap", "gsm", "gsmq"])
+ap.add_argument("--session", required=True, choices=["main", "q", "swap", "swapce", "gsm", "gsmq"])
 ap.add_argument("--runs", type=int, default=5); ap.add_argument("--warmup", type=int, default=3)
 ap.add_argument("--tiers", default="short,medium,long,vlong,hand"); ap.add_argument("--limit", type=int, default=None, help="prompts per tier (smoke)")
 ap.add_argument("--gen-tokens", type=int, default=256); ap.add_argument("--ckpt", default="checkpoints/phase4_run/best.pt")
 ap.add_argument("--sweep-prompts", type=int, default=8); ap.add_argument("--sweep-runs", type=int, default=3)
 ap.add_argument("--gsm-n", type=int, default=200); ap.add_argument("--out", default=None); ap.add_argument("--no-extras", action="store_true")
 a = ap.parse_args()
-out = REPO / "logs/phase5" / (a.out or f"raw_{a.session}.jsonl"); rec = Recorder(out)
+out = REPO / "logs/phase5" / (a.out or f"raw_{a.session.removesuffix(chr(99)+chr(101))}.jsonl"); rec = Recorder(out)
 tiers = a.tiers.split(","); prompts, ps = load_prompt_set(tiers, a.limit)
 N = a.gen_tokens
 print(f"session {a.session}: {len(prompts)} prompts, {a.runs} runs, {N} gen tokens -> {out}", flush=True)
 rec.write({"key": f"header:{a.session}:{time.time()}", **session_header(a.session, {"args": vars(a)})})
 
+def vram_guard(where, peak_gib=None):
+    """The xe driver spills VRAM overflow into PINNED system RAM, which on this 15 GB box ends in a global OOM kill of the desktop
+    (2026-09-20). Abort the session cleanly instead. rc=4 tells the driver not to restart it."""
+    free = torch.xpu.mem_get_info()[0] / 2**30
+    if free < 0.8 or (peak_gib is not None and peak_gib > 30.3):
+        print(f"VRAM GUARD at {where}: device free {free:.2f} GiB, peak {peak_gib} GiB -> aborting session (rc=4)", flush=True); sys.exit(4)
+
+
 def record(system, p, run, r, S=None, B=None, judge=None, tag=""):
+    vram_guard(f"{system}:{p['id']}", r.get("peak_gib"))
     rec.write({"key": f"{tag}{system}:{p['id']}:{run}:S{S}:B{B}", "system": system, "prompt_id": p["id"], "tier": p["tier"], "run": run, "S": S, "B": B,
                "prompt_tokens": p["prompt_tokens"], "gen_tokens": len(r["ids"]), "total_s": r["total_s"], "ttft_s": r["ttft_s"], "prefill_s": r["prefill_s"],
                "steady_tok_s": r["steady_tok_s"], "wall_tok_s": len(r["ids"]) / r["total_s"], "forwards": r["forwards"], "peak_gib": r["peak_gib"],
@@ -33,15 +42,18 @@ def record(system, p, run, r, S=None, B=None, judge=None, tag=""):
                "ids": r["ids"]})
 
 # ------------------------------------------------------------------------------------------------ main / swap
-if a.session in ("main", "swap"):
-    bf16ctx = a.session == "swap"
-    ses = MainSession(a.ckpt, context_bits=16 if bf16ctx else 8)
+if a.session in ("main", "swap", "swapce"):
+    bf16ctx = a.session != "main"
+    ce_only = a.session == "swapce"   # held-out CE only: no judge needed, so drop Qwen's lm_head (-1.1 GiB) for headroom
+    ses = MainSession(a.ckpt, context_bits=16 if bf16ctx else 8, keep_lm_head=not ce_only)
+    if ce_only: prompts = []
     plan = [("T", 8, 32)] if bf16ctx else [("D", 64, None), ("T0", 8, 32), ("T", 8, 32), ("T", 32, 32)]  # T S=32 = 256 forwards, D's S=256 pairing
     tag = "bf16ctx:" if bf16ctx else ""
     names = [s for s, _, _ in plan]
     # warm-up each system
-    w = prompts[0]
+    w = prompts[0] if prompts else None
     for s, S, B in plan:
+        if w is None: break
         ses.set_system(s)
         for _ in range(a.warmup): (ses.gen_D(w["ids"][:64], 32, 8) if s == "D" else ses.gen_T(w["ids"][:64], 32, 8, 32))
     print("warm-up done", flush=True)
