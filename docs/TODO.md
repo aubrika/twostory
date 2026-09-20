@@ -1,5 +1,9 @@
 # TwoStory — to-do / optimization backlog
 
+- [ ] **Baseline: Fast-dLLM v2 7B** (NVIDIA's single-model block-diffusion conversion of Qwen2.5-7B-Instruct, ~1B tokens) on the same card, same
+      harness, same judge: `bench/run_bench.py --session f`. Queued to run after the GSM8K sessions (2026-09-20). The question it answers:
+      does a bridge-only recipe compete with a full fine-tune at a fraction of the training lift?
+
 - [ ] **Merge LoRA into Dream's base weights for inference.** Dream is bf16, so `W += (alpha/r)·B·A` is exact up to rounding. Removes 2 extra fp32
       matmuls + casts on each of 196 adapted projections per forward. Expected: trained bridge goes from ~37 to ~48-49 tok/s (the T₀ row's
       speed, which runs with adapters off), identical outputs up to rounding. Add a `T merged` row to the Phase 5 table. (Noted 2026-09-20.)
