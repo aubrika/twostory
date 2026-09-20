@@ -360,6 +360,7 @@ class DreamSdpaAttention(DreamAttention):
         use_cache: bool = False,
         cache_position: Optional[torch.LongTensor] = None,
         position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,  # will become mandatory in v4.46
+        ext_kv: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,  # TwoStory linmap: external context (K already RoPE'd, V), [1, n_kv, Tc, d]
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         if output_attentions:
             # TODO: Improve this warning with e.g. `model.config.attn_implementation = "manual"` once this is implemented.
@@ -401,6 +402,12 @@ class DreamSdpaAttention(DreamAttention):
         if past_key_value is not None:
             cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}  # Specific to RoPE models
             key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
+
+        if ext_kv is not None:
+            # TwoStory linmap: the denoiser's OWN attention reads the context tower's (mapped) K/V in one softmax with its block K/V.
+            assert bsz == 1 and attention_mask is None, "ext_kv path is batch-1, unmasked (context precedes the block)"
+            key_states = torch.cat([ext_kv[0].to(key_states.dtype), key_states], dim=2)
+            value_states = torch.cat([ext_kv[1].to(value_states.dtype), value_states], dim=2)
 
         key_states = repeat_kv(key_states, self.num_key_value_groups)
         value_states = repeat_kv(value_states, self.num_key_value_groups)
@@ -457,6 +464,7 @@ class DreamDecoderLayer(nn.Module):
         self.post_attention_layernorm = DreamRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         # TwoStory: optional cross-attention bridge to the context tower's cache (set by bridge.attach_bridges)
         self.bridge = None
+        self.kv_concat = False  # TwoStory linmap: if True, ctx_kv goes INTO self-attention (concat) and the bridge is bypassed
 
     def forward(
         self,
@@ -508,11 +516,12 @@ class DreamDecoderLayer(nn.Module):
             use_cache=use_cache,
             cache_position=cache_position,
             position_embeddings=position_embeddings,
+            ext_kv=ctx_kv if self.kv_concat else None,
         )
         hidden_states = residual + hidden_states
 
         # TwoStory: cross-attention bridge (zero-initialised output projection => exact no-op at init)
-        if self.bridge is not None and ctx_kv is not None:
+        if self.bridge is not None and ctx_kv is not None and not self.kv_concat:
             hidden_states = hidden_states + self.bridge(hidden_states, ctx_kv[0], ctx_kv[1], position_embeddings, ctx_mask)
 
         # Fully Connected

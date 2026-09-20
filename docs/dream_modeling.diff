@@ -1,15 +1,37 @@
 --- reference/dream-base/modeling_dream.py	2026-09-16 23:44:05.304651758 -0700
-+++ twostory/dream/modeling_dream.py	2026-09-17 00:27:59.550308324 -0700
-@@ -455,6 +455,8 @@
++++ twostory/dream/modeling_dream.py	2026-09-20 11:13:33.810466629 -0700
+@@ -360,6 +360,7 @@
+         use_cache: bool = False,
+         cache_position: Optional[torch.LongTensor] = None,
+         position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,  # will become mandatory in v4.46
++        ext_kv: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,  # TwoStory linmap: external context (K already RoPE'd, V), [1, n_kv, Tc, d]
+     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
+         if output_attentions:
+             # TODO: Improve this warning with e.g. `model.config.attn_implementation = "manual"` once this is implemented.
+@@ -402,6 +403,12 @@
+             cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}  # Specific to RoPE models
+             key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
+ 
++        if ext_kv is not None:
++            # TwoStory linmap: the denoiser's OWN attention reads the context tower's (mapped) K/V in one softmax with its block K/V.
++            assert bsz == 1 and attention_mask is None, "ext_kv path is batch-1, unmasked (context precedes the block)"
++            key_states = torch.cat([ext_kv[0].to(key_states.dtype), key_states], dim=2)
++            value_states = torch.cat([ext_kv[1].to(value_states.dtype), value_states], dim=2)
++
+         key_states = repeat_kv(key_states, self.num_key_value_groups)
+         value_states = repeat_kv(value_states, self.num_key_value_groups)
+ 
+@@ -455,6 +462,9 @@
          self.mlp = DreamMLP(config)
          self.input_layernorm = DreamRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
          self.post_attention_layernorm = DreamRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
 +        # TwoStory: optional cross-attention bridge to the context tower's cache (set by bridge.attach_bridges)
 +        self.bridge = None
++        self.kv_concat = False  # TwoStory linmap: if True, ctx_kv goes INTO self-attention (concat) and the bridge is bypassed
  
      def forward(
          self,
-@@ -466,6 +468,8 @@
+@@ -466,6 +476,8 @@
          use_cache: Optional[bool] = False,
          cache_position: Optional[torch.LongTensor] = None,
          position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,  # will become mandatory in v4.46
@@ -18,18 +40,22 @@
          **kwargs,
      ) -> Tuple[torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]]:
          """
-@@ -507,6 +511,10 @@
+@@ -504,9 +516,14 @@
+             use_cache=use_cache,
+             cache_position=cache_position,
+             position_embeddings=position_embeddings,
++            ext_kv=ctx_kv if self.kv_concat else None,
          )
          hidden_states = residual + hidden_states
  
 +        # TwoStory: cross-attention bridge (zero-initialised output projection => exact no-op at init)
-+        if self.bridge is not None and ctx_kv is not None:
++        if self.bridge is not None and ctx_kv is not None and not self.kv_concat:
 +            hidden_states = hidden_states + self.bridge(hidden_states, ctx_kv[0], ctx_kv[1], position_embeddings, ctx_mask)
 +
          # Fully Connected
          residual = hidden_states
          hidden_states = self.post_attention_layernorm(hidden_states)
-@@ -642,6 +650,8 @@
+@@ -642,6 +659,8 @@
          output_hidden_states: Optional[bool] = None,
          return_dict: Optional[bool] = None,
          cache_position: Optional[torch.LongTensor] = None,
@@ -38,7 +64,7 @@
      ) -> Union[Tuple, BaseModelOutput]:
          output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
          output_hidden_states = (
-@@ -685,9 +695,10 @@
+@@ -685,9 +704,10 @@
          all_hidden_states = () if output_hidden_states else None
          all_self_attns = () if output_attentions else None
  
@@ -50,7 +76,7 @@
  
              if self.gradient_checkpointing and self.training:
                  layer_outputs = self._gradient_checkpointing_func(
-@@ -700,6 +711,8 @@
+@@ -700,6 +720,8 @@
                      use_cache,
                      cache_position,
                      position_embeddings,
@@ -59,7 +85,7 @@
                  )
              else:
                  layer_outputs = decoder_layer(
-@@ -711,6 +724,8 @@
+@@ -711,6 +733,8 @@
                      use_cache=use_cache,
                      cache_position=cache_position,
                      position_embeddings=position_embeddings,
@@ -68,7 +94,7 @@
                  )
  
              hidden_states = layer_outputs[0]
-@@ -782,8 +797,13 @@
+@@ -782,8 +806,13 @@
          return_dict: Optional[bool] = None,
          cache_position: Optional[torch.LongTensor] = None,
          num_logits_to_keep: int = 0,
@@ -82,7 +108,7 @@
          output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
          output_hidden_states = (
              output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-@@ -802,6 +822,8 @@
+@@ -802,6 +831,8 @@
              output_hidden_states=output_hidden_states,
              return_dict=return_dict,
              cache_position=cache_position,
