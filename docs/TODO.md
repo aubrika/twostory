@@ -15,3 +15,9 @@
 - [ ] Unresolved: two NaN held-out evals early in Phase 4 (steps 1000, 2000) never recurred after per-sequence scoring; no dump captured.
 - [ ] Unresolved: one silent generation hang in the Phase 5 main session (no driver timeout logged); stall guard recovered it.
 - [ ] Launch long jobs via `systemd-run --user`, never from the VS Code shell (its cgroup dies with VS Code).
+
+## Frozen 2026-09-20 (user: pause; pivot to the linear K/V-map bridge)
+- Phase 5 sessions main, q, swap (short+medium + held-out CE), gsm, gsmq: COMPLETE in `logs/phase5/raw_*.jsonl`.
+- Fast-dLLM v2 session `f`: PARTIAL (stopped mid-run; resume-by-key with `bench/run_all.sh f`).
+- Distillation probe `bench/distill_probe.py`: written and preflighted in code only, NOT run. Resume with `bench/queue_probe.sh`.
+- Phase 5 report not yet written; `bench/analyze.py` regenerates tables/figures from whatever raw data exists.
