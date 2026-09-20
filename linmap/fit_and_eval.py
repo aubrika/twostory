@@ -56,7 +56,9 @@ def add(key, X, Y):
     else: gpuA[key], gpuB[key] = A_, B_
 cpuA, cpuB = {}, {}
 def flush():
-    for k in list(gpuA):
+    # Only the small 513x513 K/V accumulators go to CPU fp64. The 3585x3585 hidden-state accumulators stay on the GPU in fp32:
+    # 28 of them in fp64 on the CPU (plus per-flush temporaries) blew through a 12 GB cap on this 15 GB box (2026-09-20).
+    for k in [k for k in gpuA if k[0] != "h"]:
         A_, B_ = gpuA.pop(k).double().cpu(), gpuB.pop(k).double().cpu()
         if k in cpuA: cpuA[k] += A_; cpuB[k] += B_
         else: cpuA[k], cpuB[k] = A_, B_
@@ -71,10 +73,12 @@ for n in range(a.fit_seqs):
     if (n + 1) % 40 == 0: print(f"  fit {n+1}/{a.fit_seqs} seqs, {n_tok} tokens, {time.time()-t0:.0f}s", flush=True)
 flush()
 W = {}
-for k in cpuA:
-    A_, B_ = cpuA[k], cpuB[k]; lam = a.ridge * torch.trace(A_) / A_.shape[0]
-    reg = lam * torch.eye(A_.shape[0], dtype=torch.float64); reg[-1, -1] = 0
-    W[k] = torch.linalg.solve(A_ + reg, B_).float().to(dev)                              # [din+1, dout]
+for k in list(cpuA) + [k for k in list(gpuA) if k[0] == "h"]:                              # one map at a time; free as we go
+    if k in cpuA: A_, B_ = cpuA.pop(k), cpuB.pop(k)
+    else: A_, B_ = gpuA.pop(k).double().cpu(), gpuB.pop(k).double().cpu()
+    lam = a.ridge * torch.trace(A_) / A_.shape[0]
+    A_.diagonal()[:-1].add_(lam)                                                          # ridge in place (bias unregularised)
+    W[k] = torch.linalg.solve(A_, B_).float().to(dev); del A_, B_                         # [din+1, dout]
 print(f"Stage A fit done: {n_tok} tokens, {len(W)} maps, {time.time()-t0:.0f}s", flush=True)
 def map_kv(kind, i, Qi):
     """kind in identity|linear_kv|linear_h -> (K_pre, V_pre) in Dream space, float32 [T, 512]"""
@@ -152,8 +156,8 @@ print(f"  references: no context (old frame) {T0:.3f} | trained bridge 3.771 | p
 for v in variants:
     gc = (res["ce"]["none"] - res["ce"][v]) / (res["ce"]["none"] - res["ce"]["D_same_code"])
     print(f"  {v:15s} CE {res['ce'][v]:.3f}   gap closed vs 'none' {100*gc:6.1f}%   agreement with Dream {100*res['agree_with_D'][v]:.1f}%")
-json.dump(res, open(OUT / "linmap_results.json", "w"), indent=1, default=str)
-torch.save({k: v.cpu() for k, v in W.items()}, OUT / "linmap_weights.pt")
+json.dump(res, open(OUT / f"linmap_results_fit{a.fit_seqs}.json", "w"), indent=1, default=str)
+torch.save({k: v.cpu() for k, v in W.items()}, OUT / f"linmap_weights_fit{a.fit_seqs}.pt")
 try:
     import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
     fig, ax = plt.subplots(1, 2, figsize=(11, 4), sharey=True)
