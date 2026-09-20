@@ -203,3 +203,40 @@ def session_header(name, extra=None):
     h = {"session": name, "provenance": provenance(), "gpu_other_users": gpu_other_users(), "gpu": gpu_telemetry(), "prompt_set_sha256": open(REPO / "data/prompt_set.sha256").read().strip()}
     if extra: h.update(extra)
     return h
+
+
+# =============================================================================== Fast-dLLM v2 session (single-model block diffusion baseline)
+class FSession:
+    """Efficient-Large-Model/Fast_dLLM_v2_7B (Qwen2.5-7B-Instruct -> block diffusion, native block KV cache), bf16, plus the same
+    int8 Qwen judge used for the D/T rows. Deterministic: temperature 0. Speed knob: confidence `threshold` (1.0 = one token/forward)."""
+    ID = "Efficient-Large-Model/Fast_dLLM_v2_7B"
+
+    def __init__(self):
+        from transformers import AutoModelForCausalLM
+        from twostory.util import load_qwen, DEVICE
+        self.model = AutoModelForCausalLM.from_pretrained(self.ID, trust_remote_code=True, torch_dtype=torch.bfloat16, device_map={"": DEVICE}).eval()
+        self.judge = load_qwen(8)            # int8 Qwen2.5-7B with lm_head: identical judge to the main session
+        self.tokq = load_tokenizer("qwen")
+        self.n_forwards = 0
+        self.model.model.register_forward_hook(lambda *_: setattr(self, "n_forwards", self.n_forwards + 1))
+
+    @torch.no_grad()
+    def _generate(self, ids, new_tokens, threshold, small_block_size=8):
+        x = torch.tensor([ids], device="xpu")
+        out = self.model.generate(x, max_new_tokens=new_tokens, tokenizer=self.tokq, threshold=threshold, small_block_size=small_block_size,
+                                  block_size=32, temperature=0, stop_token=-1)   # stop_token=-1: never stop early -> fixed output work
+        return out[0, x.shape[1]:].tolist()
+
+    def gen(self, ids, new_tokens, threshold):
+        _, t_first, _ = timed(lambda: self._generate(ids, 32, threshold))          # prefill + first block = time to first block
+        self.n_forwards = 0
+        gen, total, peak = timed(lambda: self._generate(ids, new_tokens, threshold))
+        n = len(gen)
+        return {"ids": gen, "total_s": total, "ttft_s": t_first, "prefill_s": t_first, "steady_tok_s": max(n - 32, 1) / max(1e-6, total - t_first),
+                "peak_gib": peak, "forwards": self.n_forwards}
+
+    @torch.no_grad()
+    def judge_nll(self, prompt_ids, gen_ids):
+        x = torch.tensor([prompt_ids + gen_ids], device="xpu")
+        logits = self.judge(x).logits[0, len(prompt_ids) - 1:-1].float()
+        return _judge_pair(logits, gen_ids)

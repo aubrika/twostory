@@ -9,10 +9,10 @@ systems equally; warm-up per system; N repeats; raw JSONL with telemetry, proven
 import argparse, json, re, sys, time
 import numpy as np, torch
 from twostory.util import REPO, gpu_telemetry
-from bench.harness import MainSession, QSession, Recorder, load_prompt_set, session_header, rep_rate, BOS_DREAM
+from bench.harness import MainSession, QSession, FSession, Recorder, load_prompt_set, session_header, rep_rate, BOS_DREAM
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--session", required=True, choices=["main", "q", "swap", "swapce", "gsm", "gsmq"])
+ap.add_argument("--session", required=True, choices=["main", "q", "swap", "swapce", "gsm", "gsmq", "f"])
 ap.add_argument("--runs", type=int, default=5); ap.add_argument("--warmup", type=int, default=3)
 ap.add_argument("--tiers", default="short,medium,long,vlong,hand"); ap.add_argument("--limit", type=int, default=None, help="prompts per tier (smoke)")
 ap.add_argument("--gen-tokens", type=int, default=256); ap.add_argument("--ckpt", default="checkpoints/phase4_run/best.pt")
@@ -104,6 +104,46 @@ if a.session in ("main", "swap", "swapce"):
                 if not rec.has(f"longctx:{s}:{ctx}"):
                     rec.write({"key": f"longctx:{s}:{ctx}", "kind": "longctx_ce", "system": s, "ctx_len": ctx, "ce": ses.longctx_ce(s, ctx)})
             print(f"longctx {ctx} done", flush=True)
+
+# ------------------------------------------------------------------------------------------------ F (Fast-dLLM v2 7B baseline)
+elif a.session == "f":
+    ses = FSession(); w = prompts[0]
+    for _ in range(a.warmup): ses.gen(w["ids"][:64], 64, 0.9)
+    print("warm-up done", flush=True); t_start = time.time()
+    for pi, p in enumerate(prompts):
+        for run in range(a.runs):
+            for thr in (0.9, 1.0):                       # card default, and one-token-per-forward quality ceiling (3 repeats)
+                if thr == 1.0 and run >= 3: continue
+                if rec.has(f"F:{p['id']}:{run}:S{thr}:BNone"): continue
+                r = ses.gen(p["ids"], N, thr); record("F", p, run, r, thr, None, judge=ses.judge_nll(p["ids"], r["ids"]))
+        el = time.time() - t_start; print(f"[{pi+1}/{len(prompts)}] {p['id']} done; {el/60:.1f} min elapsed, ~{el/(pi+1)*(len(prompts)-pi-1)/60:.0f} min left", flush=True)
+    if not a.no_extras:
+        longp = [p for p in prompts if p["tier"] == "long"][: a.sweep_prompts]
+        for p in longp:
+            for run in range(a.sweep_runs):
+                for thr in (0.5, 0.7, 0.9, 1.0):
+                    if rec.has(f"sweep:F:{p['id']}:{run}:S{thr}:BNone"): continue
+                    r = ses.gen(p["ids"], N, thr); record("F", p, run, r, thr, None, judge=ses.judge_nll(p["ids"], r["ids"]), tag="sweep:")
+            print(f"sweep {p['id']} done", flush=True)
+        # GSM8K, same items and 4-shot prompt as the gsm/gsmq sessions
+        import pyarrow.parquet as pq
+        rows = pq.read_table(next((REPO / "data/gsm8k/main").glob("test-*.parquet"))).to_pylist()
+        rng = np.random.default_rng(0); idx = rng.permutation(len(rows)); shots = [rows[i] for i in idx[:4]]; items = [rows[i] for i in idx[4:4 + a.gsm_n]]
+        def fmt(q, ans=None): return f"Question: {q}\nAnswer: " + (ans.split('####')[0].strip() + f"\nThe answer is {ans.split('####')[1].strip()}.\n\n" if ans else "")
+        prefix = "".join(fmt(s_["question"], s_["answer"]) for s_ in shots)
+        def extract(text):
+            m = re.findall(r"answer is\s*\$?\s*(-?[\d,]+(?:\.\d+)?)", text) or re.findall(r"(-?[\d,]+(?:\.\d+)?)", text)
+            return m[0].replace(",", "").rstrip(".") if m else None
+        for k, it in enumerate(items):
+            if rec.has(f"gsm:F:{k}"): continue
+            ids = ses.tokq(prefix + fmt(it["question"]), add_special_tokens=False).input_ids
+            r = ses.gen(ids, N, 0.9); text = ses.tokq.decode(r["ids"]).split("\n\nQuestion:")[0]
+            pred = extract(text); g = it["answer"].split("####")[1].strip().replace(",", "")
+            try: ok = pred is not None and abs(float(pred) - float(g)) < 1e-6
+            except ValueError: ok = pred == g
+            rec.write({"key": f"gsm:F:{k}", "kind": "gsm", "system": "F", "item": k, "S": 0.9, "B": None, "gold": g, "pred": pred, "correct": ok, "total_s": r["total_s"], "prompt_tokens": len(ids), "text": text[:600]})
+            if (k + 1) % 20 == 0:
+                acc = np.mean([json.loads(l)["correct"] for l in open(out) if '"key": "gsm:F:' in l]); print(f"[gsm {k+1}/{len(items)}] running accuracy {acc:.3f}", flush=True)
 
 # ------------------------------------------------------------------------------------------------ Q
 elif a.session == "q":

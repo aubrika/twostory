@@ -14,7 +14,7 @@ def load(name):
     p = RAW / f"raw_{name}.jsonl"
     return [json.loads(l) for l in open(p)] if p.exists() else []
 
-rows = load("main") + load("q") + load("swap"); gsm = load("gsm") + load("gsmq")
+rows = load("main") + load("q") + load("swap") + load("f"); gsm = load("gsm") + load("gsmq") + load("f")
 gen = [r for r in rows if "steady_tok_s" in r]
 extras = [r for r in rows if r.get("kind")]
 headers = [r for r in rows if str(r.get("key", "")).startswith("header")]
@@ -24,6 +24,7 @@ def sysname(r):
     s = r["system"]
     if s == "D": return f"D S={r['S']}"
     if s in ("T", "T0", "Tbf16"): return f"{s} S={r['S']},B={r['B']}"
+    if s == "F": return f"F thr={r['S']}"
     return s
 
 def med_iqr(v):
@@ -39,7 +40,7 @@ by = defaultdict(list)
 for r in gen:
     n = sysname(r)
     if n: by[(r["tier"], n)].append(r)
-order = ["Q", "D S=256", "D S=64", "T0 S=8,B=32", "T S=8,B=32", "T S=32,B=32", "Tbf16 S=8,B=32"]
+order = ["Q", "F thr=1.0", "F thr=0.9", "D S=256", "D S=64", "T0 S=8,B=32", "T S=8,B=32", "T S=32,B=32", "Tbf16 S=8,B=32"]
 out = []
 for tier in TIERS:
     out.append(f"\n### Tier: {tier} ({TIER_TOK.get(tier, 'mixed')} prompt tokens, 256 output tokens)\n")
@@ -115,10 +116,10 @@ try:
     if pareto:
         fig, axes = plt.subplots(1, 2, figsize=(11, 4.5))
         for ax, yk, yl in ((axes[0], "rep", "repetition rate (lower is better)"), (axes[1], "judge_norep", "judge NLL on non-repeated tokens (lower is better)")):
-            for s, mk, col in (("T", "o", "#1f77b4"), ("D", "s", "#d62728")):
+            for s, mk, col in (("T", "o", "#1f77b4"), ("D", "s", "#d62728"), ("F", "^", "#9467bd")):
                 P = [p for p in pareto if p["system"] == s]
                 ax.scatter([p["tok_s"] for p in P], [p[yk] for p in P], marker=mk, color=col, label=f"{s} sweep")
-                for p in P: ax.annotate(f"S{p['S']}" + (f"B{p['B']}" if p["B"] else ""), (p["tok_s"], p[yk]), fontsize=7, alpha=0.8)
+                for p in P: ax.annotate((f"thr{p['S']}" if s == "F" else f"S{p['S']}") + (f"B{p['B']}" if p["B"] else ""), (p["tok_s"], p[yk]), fontsize=7, alpha=0.8)
             qrs = by.get(("long", "Q"), [])
             if qrs:
                 jq = [r["judge_nll"]["norep"] for r in qrs if isinstance(r["judge_nll"], dict)]
