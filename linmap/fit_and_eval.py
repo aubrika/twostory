@@ -86,25 +86,33 @@ def map_kv(kind, i, Qi):
     if kind == "linear_kv": return aug(Qi[0]) @ W[("kv_k", i)], aug(Qi[1]) @ W[("kv_v", i)]
     Y = aug(Qi[2]) @ W[("h", i)]; return Y[:, :512], Y[:, 512:]
 kinds = ["identity", "linear_kv"] + ([] if a.no_hidden else ["linear_h"])
-# R^2 on unseen sequences (held-out indices 100.., so the 32-sequence eval set stays untouched by anything but eval)
-sse = {(kd, kv, i): 0.0 for kd in kinds for kv in "kv" for i in range(NL)}; sst = {(kv, i): 0.0 for kv in "kv" for i in range(NL)}
-cosv = {(kd, kv, i): [] for kd in kinds for kv in "kv" for i in range(NL)}
-ysum = {}; ycnt = 0; val = []
+# R^2 on unseen sequences (held-out indices 100.., so the 32-sequence eval set stays untouched by anything but eval).
+# STREAMING: holding 24 sequences of captures on the GPU (7.2 GiB incl. Qwen's 3584-d hidden states) overflowed VRAM, the xe driver
+# spilled into system RAM, and the job was OOM-killed twice (2026-09-20). Accumulate sums only.
+def memlog(tag):
+    free = torch.xpu.mem_get_info()[0] / 2**30; print(f"[mem] {tag}: torch alloc {gib(torch.xpu.memory_allocated())} GiB, device free {free:.2f} GiB", flush=True)
+    assert free > 0.8, f"VRAM guard: only {free:.2f} GiB free at {tag}"
+memlog("after fit")
+sse = {(kd, kv, i): 0.0 for kd in kinds for kv in "kv" for i in range(NL)}; cosv = {(kd, kv, i): 0.0 for kd in kinds for kv in "kv" for i in range(NL)}
+sumY = {(kv, i): 0.0 for kv in "kv" for i in range(NL)}; sumY2 = {(kv, i): 0.0 for kv in "kv" for i in range(NL)}; nval = 0
 for n in range(a.val_seqs):
-    seq = held[100 + n].astype(np.int64); ctx = seq[:512].tolist(); val.append((run_dream_ctx(ctx), run_qwen(ctx)))
-for kv_i, kv in enumerate("kv"):
+    seq = held[100 + n].astype(np.int64); ctx = seq[:512].tolist(); Dv, Qv = run_dream_ctx(ctx), run_qwen(ctx); nval += len(ctx)
     for i in range(NL):
-        Yall = torch.cat([d[i][kv_i] for d, _ in val]); mu = Yall.mean(0, keepdim=True); sst[(kv, i)] = float(((Yall - mu) ** 2).sum())
-        for kd in kinds:
-            P = torch.cat([map_kv(kd, i, q[i])[kv_i] for _, q in val])
-            sse[(kd, kv, i)] = float(((Yall - P) ** 2).sum()); cosv[(kd, kv, i)] = float(F.cosine_similarity(Yall, P, dim=1).mean())
+        for kv_i, kv in enumerate("kv"):
+            Y = Dv[i][kv_i]; sumY[(kv, i)] = sumY[(kv, i)] + Y.sum(0).double().cpu(); sumY2[(kv, i)] += float((Y.double() ** 2).sum())
+            for kd in kinds:
+                P = map_kv(kd, i, Qv[i])[kv_i]
+                sse[(kd, kv, i)] += float(((Y - P).double() ** 2).sum()); cosv[(kd, kv, i)] += float(F.cosine_similarity(Y, P, dim=1).sum())
+    del Dv, Qv
+sst = {k: sumY2[k] - float((sumY[k] ** 2).sum()) / nval for k in sumY}
+for k in cosv: cosv[k] /= nval
+memlog("after validation")
 r2 = {kd: {kv: [1 - sse[(kd, kv, i)] / sst[(kv, i)] for i in range(NL)] for kv in "kv"} for kd in kinds}
 cos = {kd: {kv: [cosv[(kd, kv, i)] for i in range(NL)] for kv in "kv"} for kd in kinds}
 print("\nStage A: held-out R^2 of Dream's context K/V predicted from Qwen (pre-RoPE), by layer")
 print("layer | " + " | ".join(f"{kd}:K   {kd}:V " for kd in kinds))
 for i in range(NL): print(f"  {i:2d}  | " + " | ".join(f"{r2[kd]['k'][i]:7.3f} {r2[kd]['v'][i]:7.3f}" for kd in kinds))
 print(" mean | " + " | ".join(f"{np.mean(r2[kd]['k']):7.3f} {np.mean(r2[kd]['v']):7.3f}" for kd in kinds), flush=True)
-del val
 
 # ------------------------------------------------------------------ Stage B: functional test (concat into Dream's own attention)
 for l in dream.model.layers: l.kv_concat = True
@@ -146,6 +154,7 @@ for n in range(a.eval_seqs):
             lg = denoise_logits(seql[s - 1], blk, s, ext)
             tot[v] += float(F.cross_entropy(lg[m], tgt[m], reduction="sum")); agree[v] += int((lg.argmax(-1)[m] == aD[m]).sum())
         cnt += int(m.sum())
+    if n == 0: memlog("first eval sequence")
     if (n + 1) % 4 == 0: print(f"  eval {n+1}/{a.eval_seqs}: " + "  ".join(f"{v} {tot[v]/cnt:.3f}" for v in variants) + f"  D {tot['D_same_code']/cnt:.3f}  ({time.time()-t0:.0f}s)", flush=True)
 ref = json.load(open(REPO / "logs/phase3/32_reference_loss.json")); T0, Dref = ref["T0_untrained"], min(ref["D_full_context_bos0"], ref["D_full_context_bos1"])
 res = {"provenance": provenance(), "args": vars(a), "fit_tokens": n_tok, "r2": r2, "cos": cos,
