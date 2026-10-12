@@ -41,7 +41,7 @@ NVIDIA's TwoTower (arXiv 2606.26493) pairs a **frozen autoregressive context tow
 
 ---
 
-## 3. Architecture spec (what Claude Code builds)
+## 3. Architecture spec
 
 **Context tower (frozen):** Qwen2.5-7B, causal, 8-bit weights, `requires_grad=False`. Given clean tokens (prompt + committed blocks), run a forward pass and **capture per-layer K and V** (28 layers). This is the cache. Recomputed only when a block is committed (extend, don't rebuild).
 
@@ -74,7 +74,7 @@ NVIDIA's TwoTower (arXiv 2606.26493) pairs a **frozen autoregressive context tow
 The one-shot discipline is: **each phase is cheap, proves one thing, and gates the next.** Nothing multi-day starts until Phases 0–3 all pass. Budget: Phases 0–3 ≈ 1–3 days of effort but ≈ minutes-to-hours of GPU time. Phase 4 is the multi-day run.
 
 ### Phase 0 — Environment and premise verification (GPU time: minutes)
-Claude Code builds a `phase0/` set of standalone scripts; you run and read each.
+Phase 0 is a set of standalone scripts in `phase0/`, each run and read on its own.
 - [ ] Load Qwen2.5-7B on XPU at 8-bit. Report peak VRAM and peak system RAM. **Gate:** loads without swap/OOM; VRAM ≤ ~8 GB.
 - [ ] Load Dream-7B on XPU at 8-bit. Same report. **Gate:** both resident simultaneously ≤ ~16 GB VRAM.
 - [ ] Assert tokenizer equality (vocab hash), hidden size, layer count between the two. **Gate:** all match. *(If not: stop, reassess.)*
@@ -122,11 +122,11 @@ The deliverable is a **quality-vs-throughput table**, four rows:
 
 ## 6. Division of labor
 
-**Claude Code does:** all implementation — Phase 0 scripts, the bridge/cache wiring inside Dream's forward, the training loop with checkpointing/logging/early-stop, the eval harness and the sweep. Point it at this document and at Dream's HF modeling file. Tell it explicitly: *zero-init the bridge output projection; the Phase 1 regression gate must pass token-identically before any training code is written.* Have it write each phase as a separate runnable script with a printed PASS/FAIL against the gate.
+Implementation was done with Claude Code: the Phase 0 scripts, the bridge/cache wiring inside Dream's forward, the training loop with checkpointing/logging/early-stop, the eval harness and the sweep. Two constraints were fixed up front: *zero-init the bridge output projection; the Phase 1 regression gate must pass token-identically before any training code is written.* Each phase is a separate runnable script with a printed PASS/FAIL against its gate.
 
-**You do:** run each phase, **read the gate result, and decide.** You own the go/no-go at every phase boundary — that judgment is the thing that can't be delegated and is what makes it one-shot. You also own: the RAM purchase decision (Phase 0), the config lock (Phase 3), the mid-run stop decision (Phase 4), and the interpretation of the final table.
+The go/no-go at every phase boundary is Aubrey's: run each phase, **read the gate result, and decide.** That judgment is the thing that can't be delegated and is what makes it one-shot. So are the RAM purchase decision (Phase 0), the config lock (Phase 3), the mid-run stop decision (Phase 4), and the interpretation of the final table.
 
-**The one rule for both of you:** no phase starts until the previous gate printed PASS. The temptation will be to skip Phase 2 ("it's obviously fine"). Don't. Phase 2 is ten minutes and it's the difference between a wasted week and a working run.
+**The one rule:** no phase starts until the previous gate printed PASS. The temptation will be to skip Phase 2 ("it's obviously fine"). Don't. Phase 2 is ten minutes and it's the difference between a wasted week and a working run.
 
 ---
 

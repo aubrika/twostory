@@ -1,7 +1,7 @@
 # Survey: Qwen-lineage diffusion LMs on the Hugging Face Hub (queried 2026-09-20)
 
 Sizes, licenses, dimensions and download counts below were read from the Hub API and each repo's `config.json` on the date above.
-The "native cache" and mechanism notes come from the papers as I know them and were NOT re-verified in this session.
+The "native cache" and mechanism notes are from memory of the papers and were NOT re-verified against them.
 
 ## Reference towers (frozen AR candidates)
 | Model | hidden | layers | heads / KV heads | head dim |

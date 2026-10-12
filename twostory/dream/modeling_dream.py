@@ -17,6 +17,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# Modified for TwoStory (2026): cross-attention bridge hooks and an external K/V path.
+# The upstream file is kept in reference/dream-base/; docs/dream_modeling.diff records every change.
 """PyTorch Dream model."""
 
 import math

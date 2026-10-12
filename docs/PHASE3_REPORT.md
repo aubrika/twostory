@@ -50,7 +50,7 @@ log (block-buffered → silent). Fixes: blocks folded into the query dimension (
 regression still token-identical), `lm_head` only at masked positions, Qwen `lm_head` dropped, allocator guard + `dev_free_gib` logged per step,
 15-min checkpoints, `--resume`, progress-based watchdog. Pilot rerun: 0 restarts, 0 driver timeouts, min device-free 3.56 GiB, 2.6 s/step (~800 tok/s).
 
-## 5. Recommendations for the config lock (your decision)
+## 5. Recommendations for the config lock
 | Knob | Recommend | Why |
 |---|---|---|
 | LR / schedule | 1e-4, 200 warmup, cosine to 10% | clean curve, no spikes with 8-bit Adam |

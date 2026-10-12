@@ -1,6 +1,16 @@
 --- reference/dream-base/modeling_dream.py	2026-09-16 23:44:05.304651758 -0700
 +++ twostory/dream/modeling_dream.py	2026-09-20 11:13:33.810466629 -0700
-@@ -360,6 +360,7 @@
+@@ -17,6 +17,9 @@
+ # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
++#
++# Modified for TwoStory (2026): cross-attention bridge hooks and an external K/V path.
++# The upstream file is kept in reference/dream-base/; docs/dream_modeling.diff records every change.
+ """PyTorch Dream model."""
+ 
+ import math
+@@ -360,6 +363,7 @@
          use_cache: bool = False,
          cache_position: Optional[torch.LongTensor] = None,
          position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,  # will become mandatory in v4.46
@@ -8,7 +18,7 @@
      ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
          if output_attentions:
              # TODO: Improve this warning with e.g. `model.config.attn_implementation = "manual"` once this is implemented.
-@@ -402,6 +403,12 @@
+@@ -402,6 +406,12 @@
              cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}  # Specific to RoPE models
              key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
  
@@ -21,7 +31,7 @@
          key_states = repeat_kv(key_states, self.num_key_value_groups)
          value_states = repeat_kv(value_states, self.num_key_value_groups)
  
-@@ -455,6 +462,9 @@
+@@ -455,6 +465,9 @@
          self.mlp = DreamMLP(config)
          self.input_layernorm = DreamRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
          self.post_attention_layernorm = DreamRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
@@ -31,7 +41,7 @@
  
      def forward(
          self,
-@@ -466,6 +476,8 @@
+@@ -466,6 +479,8 @@
          use_cache: Optional[bool] = False,
          cache_position: Optional[torch.LongTensor] = None,
          position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,  # will become mandatory in v4.46
@@ -40,7 +50,7 @@
          **kwargs,
      ) -> Tuple[torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]]:
          """
-@@ -504,9 +516,14 @@
+@@ -504,9 +519,14 @@
              use_cache=use_cache,
              cache_position=cache_position,
              position_embeddings=position_embeddings,
@@ -55,7 +65,7 @@
          # Fully Connected
          residual = hidden_states
          hidden_states = self.post_attention_layernorm(hidden_states)
-@@ -642,6 +659,8 @@
+@@ -642,6 +662,8 @@
          output_hidden_states: Optional[bool] = None,
          return_dict: Optional[bool] = None,
          cache_position: Optional[torch.LongTensor] = None,
@@ -64,7 +74,7 @@
      ) -> Union[Tuple, BaseModelOutput]:
          output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
          output_hidden_states = (
-@@ -685,9 +704,10 @@
+@@ -685,9 +707,10 @@
          all_hidden_states = () if output_hidden_states else None
          all_self_attns = () if output_attentions else None
  
@@ -76,7 +86,7 @@
  
              if self.gradient_checkpointing and self.training:
                  layer_outputs = self._gradient_checkpointing_func(
-@@ -700,6 +720,8 @@
+@@ -700,6 +723,8 @@
                      use_cache,
                      cache_position,
                      position_embeddings,
@@ -85,7 +95,7 @@
                  )
              else:
                  layer_outputs = decoder_layer(
-@@ -711,6 +733,8 @@
+@@ -711,6 +736,8 @@
                      use_cache=use_cache,
                      cache_position=cache_position,
                      position_embeddings=position_embeddings,
@@ -94,7 +104,7 @@
                  )
  
              hidden_states = layer_outputs[0]
-@@ -782,8 +806,13 @@
+@@ -782,8 +809,13 @@
          return_dict: Optional[bool] = None,
          cache_position: Optional[torch.LongTensor] = None,
          num_logits_to_keep: int = 0,
@@ -108,7 +118,7 @@
          output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
          output_hidden_states = (
              output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-@@ -802,6 +831,8 @@
+@@ -802,6 +834,8 @@
              output_hidden_states=output_hidden_states,
              return_dict=return_dict,
              cache_position=cache_position,

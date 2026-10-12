@@ -66,7 +66,7 @@ fails to build here for lack of the Level Zero headers).
 Both baselines remain deterministic and coherent. **The Phase 1 regression target is now
 `logs/phase0/baseline_A_dream_16bit.json`.** The 8-bit files are kept as a record.
 
-**Open experiment (user's idea):** the bridge is trained against KV caches produced by the *int8* context tower. After
+**Open experiment (Aubrey's idea):** the bridge is trained against KV caches produced by the *int8* context tower. After
 training, swap in the bf16 Qwen tower (both bf16 = 28.4 GiB, fits for inference) and measure. Per-layer int8 error is
 ~0.5%, so the bridge should transfer with a small shift, as QLoRA adapters do when merged onto full-precision bases, but it
 is an empirical question: the benchmark harness gets an extra row, T with bf16 context tower, to answer it.

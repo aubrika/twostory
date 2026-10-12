@@ -1,0 +1,30 @@
+TwoStory
+Copyright (c) 2026 Aubrey
+
+TwoStory's own code is released under the MIT License (see LICENSE).
+
+This repository also contains third-party files, which remain under their own
+licenses. The full Apache License 2.0 text is in LICENSES/Apache-2.0.txt.
+
+twostory/dream/
+    Dream-7B modeling code. Copyright 2024 The Dream team, HKUNLP Group and
+    the HuggingFace Inc. team. Apache License 2.0.
+    Source: https://huggingface.co/Dream-org/Dream-v0-Base-7B
+    (revision 6572adb5535263e4d1a337b56942ba48b6dee2a9).
+    modeling_dream.py has been modified for TwoStory (cross-attention bridge
+    hooks and an external K/V path); docs/dream_modeling.diff records every
+    change. configuration_dream.py and generation_utils.py are unmodified.
+
+reference/dream-base/
+    Unmodified configuration, tokenizer and modeling files from the same
+    Dream-7B revision. Apache License 2.0.
+
+reference/fast-dllm-v2-7b/
+    Unmodified configuration and modeling files from NVIDIA's Fast-dLLM v2
+    (7B). Apache License 2.0.
+    Source: https://huggingface.co/Efficient-Large-Model/Fast_dLLM_v2_7B
+
+reference/qwen2.5-7b/
+    Unmodified configuration and tokenizer files from Qwen2.5-7B, Alibaba
+    Cloud. Apache License 2.0.
+    Source: https://huggingface.co/Qwen/Qwen2.5-7B

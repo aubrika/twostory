@@ -2,7 +2,7 @@
 
 **Quantitatively comparing the bridged model against its two parents (Dream-7B plain diffusion, Qwen2.5-7B autoregressive) on the Intel Arc Pro B70.**
 
-*Companion to `twostory-protocol.md`. That document builds the thing; this one measures it honestly. The rules here exist because every benchmark table lies unless you make it hard for it to.*
+*Companion to [PROTOCOL.md](PROTOCOL.md). That document builds the thing; this one measures it honestly. The rules here exist because every benchmark table lies unless you make it hard for it to.*
 
 ---
 
@@ -133,9 +133,9 @@ For each point, record tok/s and held-out loss. This produces the **quality-vs-t
 
 ## 8. Division of labor
 
-**Claude Code builds:** the benchmark harness — prompt-set generator (hashed), the interleaved runner with warm-up and repetition, thermal/clock logging, JSONL raw output, the sweep driver, and the analysis script that produces the table, the Pareto plot, and the scaling plot from the raw logs. Tell it: *raw timings to disk first, aggregate separately; interleave systems; median + IQR, never a bare mean.*
+The benchmark harness was built with Claude Code: the prompt-set generator (hashed), the interleaved runner with warm-up and repetition, thermal/clock logging, JSONL raw output, the sweep driver, and the analysis script that produces the table, the Pareto plot, and the scaling plot from the raw logs. Its standing constraints: *raw timings to disk first, aggregate separately; interleave systems; median + IQR, never a bare mean.*
 
-**You do:** freeze the prompt set (read it — make sure the hand-written prompts are what you want), run the sessions with the machine isolated, watch the thermal log, and **interpret** using §7. You also decide the one thing the harness can't: whether a surprising number is a bug or a finding. Surprising numbers get re-run before they get believed.
+Aubrey's part: freeze the prompt set (after reading the hand-written prompts), run the sessions with the machine isolated, watch the thermal log, and **interpret** using §7. That includes the one call the harness can't make: whether a surprising number is a bug or a finding. Surprising numbers get re-run before they get believed.
 
 ---
 

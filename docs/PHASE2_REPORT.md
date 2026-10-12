@@ -21,7 +21,7 @@ the fp32 run did not. Phase 3 should watch for this at its (lower) learning rate
 lower with 8-bit states. Nothing in Phase 2's gate depends on it.
 
 ## Decisions
-- **Keep the full-size bridge** (user's call: try full first, shrink only if over the line). Memory lever used instead:
+- **Keep the full-size bridge** (Aubrey's call: try full first, shrink only if over the line). Memory lever used instead:
   8-bit optimizer states. `TrainConfig(optimizer="adamw8bit")` is now the default for training scripts.
 - Headroom at peak: ~4.8 GiB below the card's 31.9 GiB. Longer `ctx_max` (768) means *fewer* blocks, so training memory does
   not grow with context; the only growth term is the eval/generation path, which runs without grads.
