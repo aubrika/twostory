@@ -109,3 +109,17 @@ See the addendum in `docs/PHASE0_REPORT.md`.
 - No phase starts until the previous gate printed PASS.
 - `twostory/prompts.py` and the recorded baselines are frozen after Phase 0.
 - The held-out split (`data/tokens/heldout.bin`, hash in `data/tokens/meta.json`) is never trained on.
+
+## License and attribution
+
+TwoStory's own code is released under the [MIT License](LICENSE).
+
+`twostory/dream/` is vendored from [Dream-7B](https://huggingface.co/Dream-org/Dream-v0-Base-7B) (the Dream team, HKUNLP; Apache-2.0),
+with `modeling_dream.py` modified to carry the bridge; [docs/dream_modeling.diff](docs/dream_modeling.diff) records every change.
+`reference/` holds unmodified upstream files from Dream, [Qwen2.5-7B](https://huggingface.co/Qwen/Qwen2.5-7B) and
+[Fast-dLLM v2](https://huggingface.co/Efficient-Large-Model/Fast_dLLM_v2_7B), all Apache-2.0. Details are in [NOTICE](NOTICE), and
+the Apache text is in [LICENSES/](LICENSES/Apache-2.0.txt). No model weights are stored in this repository.
+
+The architecture follows NVIDIA's [TwoTower](https://arxiv.org/abs/2606.26493).
+
+Built with AI coding assistance (Claude Code), as [docs/PROTOCOL.md](docs/PROTOCOL.md) describes. The hypothesis, the go/no-go decisions at each gate and the conclusions are mine.
