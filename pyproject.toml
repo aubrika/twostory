@@ -5,9 +5,18 @@ description = "TwoStory: Dream-7B denoiser + frozen Qwen2.5-7B context tower, Lo
 requires-python = ">=3.12"
 dependencies = []
 
+# Install PyTorch XPU separately from its platform-specific index.
+# Model-library versions come from the committed Phase 0 environment report.
+[project.optional-dependencies]
+xpu = [
+    "transformers==4.57.6", "peft==0.21.0", "bitsandbytes==0.50.2",
+    "accelerate==1.15.0", "datasets", "pyarrow", "numpy", "psutil", "safetensors", "matplotlib",
+]
+analysis = ["numpy", "matplotlib"]
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["twostory*"]
+include = ["twostory*", "bench*", "linmap*"]

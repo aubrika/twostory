@@ -5,9 +5,13 @@ import json, math, statistics, sys
 from collections import defaultdict
 from pathlib import Path
 import numpy as np
-from twostory.util import REPO
+REPO = Path(__file__).resolve().parents[1]
 
-RAW = REPO / "logs/phase5"; FIGS = REPO / "docs/figs"; FIGS.mkdir(parents=True, exist_ok=True)
+RAW = REPO / "logs/phase5"; FIGS = REPO / "docs/figs"
+if not any(RAW.glob("raw_*.jsonl")):
+    raise SystemExit("No Phase 5 raw logs found in logs/phase5/. They are not included in the repository; "
+                     "see docs/REPRODUCING.md.")
+FIGS.mkdir(parents=True, exist_ok=True)
 TIERS = ["short", "medium", "long", "vlong", "hand"]; TIER_TOK = {"short": 128, "medium": 512, "long": 2048, "vlong": 4096}
 
 def load(name):

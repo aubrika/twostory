@@ -25,9 +25,13 @@ expected: Dream's context representations are bidirectional, so they encode late
 | identity: raw Qwen K/V | 6.395 | −103% | 23.1% |
 | **linear K/V map (closed form)** | **4.051** | **59.5%** | 61.5% |
 | **linear hidden→K/V map (closed form)** | **3.948** | **66.6%** | 64.2% |
-| Phase 4 trained bridge (separate cross-attn, 86M tokens, ~34 GPU-h) | 3.771 | 79.0% | — |
+| Phase 4 trained bridge (separate cross-attn, 86M tokens, ~34 GPU-h); not re-scored here, see note | 3.771 | 79.0% | — |
 | oracle: Dream's own context K/V, computed once with the block fully masked | 3.488 | 98.6% | 92.3% |
 | plain Dream, context in its own input (recomputed here; Phase 3 value 3.465) | 3.468 | 100% | 100% |
+
+Note: the trained-bridge row is not a measurement from this run. Its CE is the Phase 4 final evaluation, placed against this run's
+no-context and plain-Dream rows (79.0%); in Phase 4's own frame it is 78.8%. The 32 sequences are the validation slice reused
+throughout development, not a final test set.
 
 ## Reading
 1. The concat wiring is essentially lossless (oracle 98.6%): "context processed once per block, block-only denoiser" reproduces Dream.

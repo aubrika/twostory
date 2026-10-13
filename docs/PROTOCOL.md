@@ -1,5 +1,9 @@
 # TwoStory — Experimental Protocol
 
+> Historical design plan, kept to explain the experiment's original choices. Not everything below is current: training
+> ultimately used bf16 Dream and int8 Qwen, and later work moved to linear K/V maps. Use the [README](../README.md) for
+> current results and [REPRODUCING.md](REPRODUCING.md) for setup.
+
 **TwoStory: a homelab TwoTower. Dream-7B (denoiser) + frozen Qwen2.5-7B (context tower), trained bridge-only via LoRA, on an Intel Arc Pro B70. Smaller than a tower.**
 
 *Written Sept 2026. Designed to be executed once, correctly: every phase has a go/no-go gate, and nothing expensive starts until the cheap things have proven the setup works.*

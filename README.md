@@ -36,7 +36,17 @@ to plain Dream with the context in its own input (100%).
 | oracle: Dream's own context K/V, computed once per block | 3.488 | 98.6% |
 | plain Dream | 3.468 | 100% |
 
-\* 78.8% in Phase 4's own final evaluation; 79.0% is the same checkpoint re-scored alongside the linear maps.
+\* The trained bridge was not re-scored in this run. Its loss (3.771) is from Phase 4's final evaluation, set against this
+run's two reference rows, which gives 79.0%. Against the reference values measured in Phase 4 itself (4.913 and 3.465) it is 78.8%.
+
+How to read these numbers:
+
+- **"Gap closed" is a gap in masked cross-entropy,** `(CE_none - CE_variant) / (CE_none - CE_plain)`. It is not a percentage of
+  general model quality retained.
+- **These are validation results, not a final test.** The same 32 held-out sequences were used throughout development, including
+  to choose checkpoints. A fresh test split has not been evaluated.
+- **The held-out split is by sequence, not by document.** Documents are packed into 1,024-token sequences and every fiftieth
+  sequence is held out, so one document can fall partly in training and partly in the held-out set.
 
 - **The wiring isn't the bottleneck.** The oracle row shows "context processed once per block, block-only denoiser" reproduces
   Dream almost exactly; what limits quality is how good the context K/V are.
@@ -58,6 +68,7 @@ to plain Dream with the context in its own input (100%).
 | `docs/PROTOCOL.md` | The experimental protocol. Every phase has a go/no-go gate. |
 | `docs/PHASE{0,1,2,3,4}_REPORT.md` | Per-phase results and decisions. |
 | `docs/BENCHMARK.md`, `docs/LINMAP_RESULTS.md`, `docs/TODO.md` | Phase 5 benchmark protocol, linear K/V-map results, open work. |
+| `docs/REPRODUCING.md` | Recorded versions, pinned model revisions, data commands, and what is not in the repository. |
 | `phase0/` … `phase4/` | One standalone script per checklist item. Each prints `[GATE] ...: PASS/FAIL` and a verdict; `run_all.sh` runs a phase in order. |
 | `bench/` | Phase 5 benchmark harness: sessions run one at a time under a stall guard and resume by key; `analyze.py` builds tables and figures from raw logs without touching the GPU. |
 | `linmap/` | Closed-form linear K/V-map bridge: fit (ridge regression) and functional test. |
@@ -67,6 +78,8 @@ to plain Dream with the context in its own input (100%).
 | `data/` | (git-ignored) FineWeb-Edu parquet shards and the pre-tokenized `tokens/{train,heldout}.bin`. |
 
 ## Setup
+
+Recorded versions, pinned model revisions and what is not in the repository are in [docs/REPRODUCING.md](docs/REPRODUCING.md).
 
 ```bash
 uv venv --python 3.12 .venv
@@ -108,7 +121,8 @@ See the addendum in `docs/PHASE0_REPORT.md`.
 
 - No phase starts until the previous gate printed PASS.
 - `twostory/prompts.py` and the recorded baselines are frozen after Phase 0.
-- The held-out split (`data/tokens/heldout.bin`, hash in `data/tokens/meta.json`) is never trained on.
+- The held-out split (`data/tokens/heldout.bin`, hash in `data/tokens/meta.json`) is never trained on. It is split by sequence,
+  and its first 32 sequences were reused for validation throughout (see "How to read these numbers").
 
 ## License and attribution
 

@@ -3,7 +3,8 @@ Stage A: capture pre-RoPE K and V per layer from both towers on the same text; c
          Qwen K/V (512-d) -> Dream K/V (512-d), and Qwen attention-input hidden (3584-d) -> Dream K/V; report held-out R^2 by layer
          (identity / linear-KV / linear-hidden). This IS the measurement of the protocol's lineage premise.
 Stage B: feed mapped K/V into Dream's OWN attention (concat, NVIDIA-TwoTower style) and score the standard 32 held-out sequences
-         with the identical masks used since Phase 3 (T0 4.913, trained bridge 3.771, plain Dream 3.465), plus argmax agreement with Dream.
+         with the validation masks used since Phase 3, plus argmax agreement with Dream.
+         The trained cross-attention checkpoint is not evaluated by this script.
 Frames: Dream sees [BOS, ctx..., block]; context token j sits at Dream position j+1 and Qwen position j. In Stage B the denoiser input is
 [BOS, anchor=last ctx token, block]; external K/V cover ctx tokens 0..s-2, RoPE'd at Dream positions 1..s-1."""
 import argparse, json, math, time
@@ -16,6 +17,13 @@ ap = argparse.ArgumentParser()
 ap.add_argument("--fit-seqs", type=int, default=160); ap.add_argument("--val-seqs", type=int, default=24); ap.add_argument("--eval-seqs", type=int, default=32)
 ap.add_argument("--ridge", type=float, default=1e-3); ap.add_argument("--no-hidden", action="store_true"); ap.add_argument("--block", type=int, default=32)
 a = ap.parse_args()
+if a.fit_seqs < 1 or a.val_seqs < 1 or not 1 <= a.eval_seqs <= 100:
+    ap.error("fit/val counts must be positive; eval-seqs must be 1..100 to avoid the R2 validation slice")
+if a.block < 1 or 512 % a.block:
+    ap.error("block must be a positive divisor of the 512-token evaluation suffix")
+for required in ("train.bin", "heldout.bin", "meta.json"):
+    if not (REPO / "data/tokens" / required).is_file():
+        ap.error(f"Missing data/tokens/{required}; run phase0/07_pretokenize.py first")
 dev, BOS, B = "xpu", 151665, a.block
 OUT = REPO / "logs/linmap"; OUT.mkdir(parents=True, exist_ok=True)
 t00 = time.time()
@@ -86,7 +94,7 @@ def map_kv(kind, i, Qi):
     if kind == "linear_kv": return aug(Qi[0]) @ W[("kv_k", i)], aug(Qi[1]) @ W[("kv_v", i)]
     Y = aug(Qi[2]) @ W[("h", i)]; return Y[:, :512], Y[:, 512:]
 kinds = ["identity", "linear_kv"] + ([] if a.no_hidden else ["linear_h"])
-# R^2 on unseen sequences (held-out indices 100.., so the 32-sequence eval set stays untouched by anything but eval).
+# R2 uses indices 100 onward. Indices 0..31 are reused training-validation data, not a final test set.
 # STREAMING: holding 24 sequences of captures on the GPU (7.2 GiB incl. Qwen's 3584-d hidden states) overflowed VRAM, the xe driver
 # spilled into system RAM, and the job was OOM-killed twice (2026-09-20). Accumulate sums only.
 def memlog(tag):
@@ -156,12 +164,13 @@ for n in range(a.eval_seqs):
         cnt += int(m.sum())
     if n == 0: memlog("first eval sequence")
     if (n + 1) % 4 == 0: print(f"  eval {n+1}/{a.eval_seqs}: " + "  ".join(f"{v} {tot[v]/cnt:.3f}" for v in variants) + f"  D {tot['D_same_code']/cnt:.3f}  ({time.time()-t0:.0f}s)", flush=True)
-ref = json.load(open(REPO / "logs/phase3/32_reference_loss.json")); T0, Dref = ref["T0_untrained"], min(ref["D_full_context_bos0"], ref["D_full_context_bos1"])
 res = {"provenance": provenance(), "args": vars(a), "fit_tokens": n_tok, "r2": r2, "cos": cos,
        "ce": {v: tot[v] / cnt for v in tot}, "agree_with_D": {v: agree[v] / cnt for v in variants}, "n_masked": cnt,
-       "references": {"T0_no_context": T0, "T_trained_bridge": 3.771, "D_phase3": Dref}, "minutes": round((time.time() - t00) / 60, 1)}
-print("\nStage B: held-out masked CE (identical sequences and masks as every earlier number) and argmax agreement with plain Dream")
-print(f"  references: no context (old frame) {T0:.3f} | trained bridge 3.771 | plain Dream {Dref:.3f} (recomputed here: {res['ce']['D_same_code']:.3f})")
+       "evaluation": {"split_role": "validation", "sequence_start": 0, "sequence_count": a.eval_seqs,
+                      "mask_seed_start": 10000, "trained_bridge_evaluated": False},
+       "minutes": round((time.time() - t00) / 60, 1)}
+print("\nStage B: validation masked CE and argmax agreement with Dream")
+print("The trained cross-attention checkpoint is not evaluated in this run.")
 for v in variants:
     gc = (res["ce"]["none"] - res["ce"][v]) / (res["ce"]["none"] - res["ce"]["D_same_code"])
     print(f"  {v:15s} CE {res['ce'][v]:.3f}   gap closed vs 'none' {100*gc:6.1f}%   agreement with Dream {100*res['agree_with_D'][v]:.1f}%")

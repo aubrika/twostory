@@ -15,7 +15,11 @@ over the final 8,000 steps. Run dir `checkpoints/phase4_run/` (`best.pt` = final
 | D = plain Dream, context visible | — | 3.465 | 100% |
 
 The decay phase did what the pilot predicted: eight consecutive improvements, 1.220 → 1.180 (the pilot's decay gave 0.06; this gave 0.04).
-**Still falling at the last eval (1.184 → 1.180 at lr 1e-5): training-limited, not plateaued.**
+**Still falling at the last eval (1.184 → 1.180 at lr 1e-5).** More training might improve it further; this alone does not
+establish the cause of the remaining gap.
+
+These are validation results: the 32-sequence slice was reused for checkpoint selection and training decisions, and a fresh test
+remains to be run. The training logs and checkpoints are not included in the repository. See [reproduction notes](REPRODUCING.md).
 
 ## Timeline and decisions
 - Seg 1 (3.5 h): warm start from the pilot; held-out bumped 1.236 → 1.277 as lr re-warmed to 1e-4, then recovered. Stopped once by me to
